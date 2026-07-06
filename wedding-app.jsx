@@ -10,6 +10,7 @@ export default function HochzeitsApp() {
   const [editingSection, setEditingSection] = useState(null);
   const [heroImageLoaded, setHeroImageLoaded] = useState(false);
   const [expandedTimeline, setExpandedTimeline] = useState(null);
+  const [adminTab, setAdminTab] = useState('guests');
 
   const [guestList, setGuestList] = useState([]);
   const [rsvpData, setRsvpData] = useState([]);
@@ -134,7 +135,7 @@ export default function HochzeitsApp() {
   const handleAddFaq = (e) => {
     e.preventDefault();
     if (!newFaqQuestion.trim()) return;
-    const newFaq = { id: Date.now(), question: newFaqQuestion, answer: '', author: userName };
+    const newFaq = { id: Date.now(), question: newFaqQuestion, answer: '', author: userName, isFromGuest: userRole === 'guest' };
     const updated = [...faqList, newFaq];
     setFaqList(updated);
     save('hochzeitsFAQ', updated);
@@ -157,14 +158,20 @@ export default function HochzeitsApp() {
   };
 
   const attendingCount = rsvpData.filter(r => r.attending === true).length;
+  const totalAdults = rsvpData.filter(r => r.attending).reduce((sum, r) => sum + (r.adults || 0), 0);
+  const totalChildren = rsvpData.filter(r => r.attending).reduce((sum, r) => sum + (r.children || 0), 0);
 
   const styles = `
+    @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
     @keyframes fadeIn {
       from { opacity: 0; }
       to { opacity: 1; }
     }
     .fade-in {
       animation: fadeIn 1.5s ease-in-out;
+    }
+    .script-font {
+      font-family: 'Great Vibes', cursive;
     }
   `;
 
@@ -188,11 +195,11 @@ export default function HochzeitsApp() {
             <div className="text-center max-w-md w-full space-y-16">
               <div className="space-y-6 fade-in">
                 <p className="text-sm uppercase tracking-widest text-amber-100/90 font-light">Wedding Invitation</p>
-                <h1 className="text-6xl text-white font-light leading-tight mb-3" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}>
+                <h1 className="text-7xl text-white font-light leading-tight mb-3 script-font" style={{ fontWeight: 400 }}>
                   {siteContent.coupleNames.split(' & ')[0]}
                 </h1>
                 <p className="text-amber-100/70 text-sm font-light">and</p>
-                <h1 className="text-6xl text-white font-light leading-tight" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}>
+                <h1 className="text-7xl text-white font-light leading-tight script-font" style={{ fontWeight: 400 }}>
                   {siteContent.coupleNames.split(' & ')[1]}
                 </h1>
               </div>
@@ -408,11 +415,11 @@ export default function HochzeitsApp() {
                       <p className="text-xs uppercase tracking-widest text-amber-100/70 font-light">Wedding Invitation</p>
                       
                       <div className="space-y-4">
-                        <h1 className="text-6xl text-white font-light leading-tight" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}>
+                        <h1 className="text-6xl text-white font-light leading-tight script-font" style={{ fontWeight: 400 }}>
                           {siteContent.coupleNames.split(' & ')[0]}
                         </h1>
                         <p className="text-amber-100/60 text-sm">and</p>
-                        <h1 className="text-6xl text-white font-light leading-tight" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}>
+                        <h1 className="text-6xl text-white font-light leading-tight script-font" style={{ fontWeight: 400 }}>
                           {siteContent.coupleNames.split(' & ')[1]}
                         </h1>
                       </div>
@@ -484,7 +491,7 @@ export default function HochzeitsApp() {
         {currentPage === 'timeline' && (
           <div className="max-w-2xl mx-auto px-4 py-16 space-y-8">
             <div className="flex justify-between items-center">
-              <h2 className="text-3xl font-light text-white">Ablauf</h2>
+              <h2 className="text-3xl font-light text-white script-font" style={{ fontWeight: 400 }}>Ablauf</h2>
               {userRole === 'admin' && (
                 <div className="flex gap-2">
                   <button 
@@ -582,7 +589,7 @@ export default function HochzeitsApp() {
                   ) : (
                     <div 
                       onClick={() => item.subItems && item.subItems.length > 0 && setExpandedTimeline(expandedTimeline === idx ? null : idx)}
-                      className={`p-6 flex gap-6 cursor-pointer hover:bg-white/10 transition ${item.subItems && item.subItems.length > 0 ? '' : 'cursor-default'}`}>
+                      className={`p-6 flex gap-6 ${item.subItems && item.subItems.length > 0 ? 'cursor-pointer hover:bg-white/10 transition' : 'cursor-default'}`}>
                       <p className="font-mono text-amber-100/70 w-20">{item.time}</p>
                       <div className="flex-1">
                         <p className="text-white/70 font-light">{item.event}</p>
@@ -607,63 +614,136 @@ export default function HochzeitsApp() {
 
         {/* RSVP */}
         {currentPage === 'rsvp' && (
-          <div className="max-w-2xl mx-auto px-4 py-16 space-y-8">
-            <h2 className="text-3xl font-light text-white">Zusage</h2>
+          <div className="max-w-2xl mx-auto px-4 py-16 space-y-12">
+            <h2 className="text-3xl font-light text-white script-font" style={{ fontWeight: 400 }}>Zusage</h2>
 
-            <form onSubmit={handleRsvp} className="space-y-8">
-              <div>
-                <p className="font-light text-white/70 mb-4">Kommst du?</p>
-                <div className="space-y-2">
-                  {[true, false].map(val => (
-                    <label key={val} className="flex items-center p-4 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10 transition border border-amber-100/10">
-                      <input 
-                        type="radio" 
-                        checked={rsvpForm.attending === val}
-                        onChange={() => setRsvpForm({...rsvpForm, attending: val})}
-                        className="mr-3"
-                      />
-                      <span className="text-white/70">{val ? 'Ja, gerne' : 'Leider nein'}</span>
-                    </label>
-                  ))}
+            {/* Stats Section */}
+            {rsvpData.length > 0 && (
+              <div className="bg-white/5 border border-amber-100/20 rounded-lg p-8 space-y-6">
+                <h3 className="text-xl font-light text-white">Übersicht (anonym)</h3>
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="bg-white/10 rounded-lg p-6 text-center border border-amber-100/10">
+                    <p className="text-sm text-amber-100/70 uppercase mb-2">Zusagen</p>
+                    <p className="text-4xl font-light text-white">{attendingCount}</p>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-6 text-center border border-amber-100/10">
+                    <p className="text-sm text-amber-100/70 uppercase mb-2">Absagen</p>
+                    <p className="text-4xl font-light text-white">{rsvpData.filter(r => r.attending === false).length}</p>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-6 text-center border border-amber-100/10">
+                    <p className="text-sm text-amber-100/70 uppercase mb-2">Erwachsene</p>
+                    <p className="text-4xl font-light text-white">{totalAdults}</p>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-6 text-center border border-amber-100/10">
+                    <p className="text-sm text-amber-100/70 uppercase mb-2">Kinder</p>
+                    <p className="text-4xl font-light text-white">{totalChildren}</p>
+                  </div>
                 </div>
               </div>
+            )}
 
-              {rsvpForm.attending && (
-                <div className="grid grid-cols-2 gap-4">
-                  {[
-                    { label: 'Erwachsene', key: 'adults' },
-                    { label: 'Kinder (0-14)', key: 'children' }
-                  ].map(field => (
-                    <div key={field.key}>
-                      <label className="block text-xs text-amber-100 uppercase mb-2">{field.label}</label>
-                      <input 
-                        type="number" 
-                        min={field.key === 'children' ? 0 : 1}
-                        value={rsvpForm[field.key]}
-                        onChange={(e) => setRsvpForm({...rsvpForm, [field.key]: parseInt(e.target.value)})}
-                        className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-1 focus:ring-amber-100/30"
-                      />
-                    </div>
-                  ))}
+            {/* Admin View */}
+            {userRole === 'admin' && (
+              <div className="bg-white/5 border border-amber-100/20 rounded-lg p-8 space-y-6">
+                <h3 className="text-xl font-light text-white">Gäste Details</h3>
+                <div className="space-y-3">
+                  {guestList.map(guest => {
+                    const rsvp = rsvpData.find(r => r.guestCode === guest.code);
+                    return (
+                      <div key={guest.id} className="bg-white/10 rounded-lg p-4 border border-amber-100/10">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <p className="font-light text-white">{guest.name}</p>
+                            <p className="text-xs text-amber-100/50 font-mono mt-1">{guest.code}</p>
+                          </div>
+                          {rsvp ? (
+                            <div className="text-right">
+                              <span className={`text-sm ${rsvp.attending ? 'text-green-400' : 'text-red-400'}`}>
+                                {rsvp.attending ? '✓ Zusage' : '✗ Absage'}
+                              </span>
+                              {rsvp.attending && (
+                                <div className="text-xs text-white/50 mt-2">
+                                  <p>{rsvp.adults} Erwachsene</p>
+                                  <p>{rsvp.children} Kinder</p>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-sm text-amber-100/60">⏳ Ausstehend</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
+            )}
 
-              <button 
-                type="submit"
-                className="w-full bg-amber-900/40 hover:bg-amber-900/60 text-white border border-amber-100/30 py-4 rounded-lg transition font-light">
-                Speichern
-              </button>
-            </form>
+            {/* RSVP Form */}
+            {!rsvpData.find(r => r.guestCode === userCode) && userRole === 'guest' && (
+              <form onSubmit={handleRsvp} className="space-y-8">
+                <div>
+                  <p className="font-light text-white/70 mb-4">Kommst du?</p>
+                  <div className="space-y-2">
+                    {[true, false].map(val => (
+                      <label key={val} className="flex items-center p-4 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10 transition border border-amber-100/10">
+                        <input 
+                          type="radio" 
+                          checked={rsvpForm.attending === val}
+                          onChange={() => setRsvpForm({...rsvpForm, attending: val})}
+                          className="mr-3"
+                        />
+                        <span className="text-white/70">{val ? 'Ja, gerne' : 'Leider nein'}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {rsvpForm.attending && (
+                  <div className="grid grid-cols-2 gap-4">
+                    {[
+                      { label: 'Erwachsene', key: 'adults' },
+                      { label: 'Kinder (0-14)', key: 'children' }
+                    ].map(field => (
+                      <div key={field.key}>
+                        <label className="block text-xs text-amber-100 uppercase mb-2">{field.label}</label>
+                        <input 
+                          type="number" 
+                          min={field.key === 'children' ? 0 : 1}
+                          value={rsvpForm[field.key]}
+                          onChange={(e) => setRsvpForm({...rsvpForm, [field.key]: parseInt(e.target.value)})}
+                          className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-1 focus:ring-amber-100/30"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <button 
+                  type="submit"
+                  className="w-full bg-amber-900/40 hover:bg-amber-900/60 text-white border border-amber-100/30 py-4 rounded-lg transition font-light">
+                  Speichern
+                </button>
+              </form>
+            )}
+
+            {rsvpData.find(r => r.guestCode === userCode) && userRole === 'guest' && (
+              <div className="bg-green-900/20 border border-green-600/50 rounded-lg p-6 text-center">
+                <p className="text-green-400 font-light">✓ Danke für deine Zusage!</p>
+              </div>
+            )}
           </div>
         )}
 
         {/* FAQ */}
         {currentPage === 'faq' && (
           <div className="max-w-2xl mx-auto px-4 py-16 space-y-8">
-            <h2 className="text-3xl font-light text-white">Fragen</h2>
+            <h2 className="text-3xl font-light text-white script-font" style={{ fontWeight: 400 }}>FAQ</h2>
 
-            {userRole === 'guest' && (
-              <form onSubmit={handleAddFaq} className="flex gap-2">
+            {/* Add Question */}
+            <form onSubmit={handleAddFaq} className="bg-white/5 border border-amber-100/20 rounded-lg p-6">
+              <p className="text-sm text-amber-100 uppercase mb-4 font-light">Deine Frage</p>
+              <div className="flex gap-2">
                 <input 
                   type="text"
                   value={newFaqQuestion}
@@ -674,30 +754,51 @@ export default function HochzeitsApp() {
                 <button className="bg-amber-900/40 hover:bg-amber-900/60 text-white px-6 py-3 rounded-lg transition">
                   <Plus size={20} />
                 </button>
-              </form>
-            )}
+              </div>
+            </form>
 
-            <div className="space-y-2">
+            {/* FAQ List */}
+            <div className="space-y-3">
               {faqList.map(faq => (
-                <details key={faq.id} className="group bg-white/5 border border-amber-100/10 rounded-lg p-6">
-                  <summary className="font-light text-white/70 flex justify-between cursor-pointer hover:text-white transition">
-                    {faq.question}
-                    <ChevronDown size={20} className="text-white/40 group-open:rotate-180 transition" />
-                  </summary>
-                  <div className="mt-4 pt-4 border-t border-amber-100/10 space-y-3">
-                    {userRole === 'admin' && !faq.answer ? (
-                      <textarea 
-                        defaultValue={faq.answer}
-                        onBlur={(e) => updateFaqAnswer(faq.id, e.target.value)}
-                        placeholder="Antwort..."
-                        rows="2"
-                        className="w-full bg-white/10 border border-amber-100/20 rounded px-3 py-2 text-sm text-white placeholder-white/40"
-                      />
-                    ) : (
-                      <p className="text-white/70 text-sm font-light">{faq.answer || '–'}</p>
-                    )}
-                  </div>
-                </details>
+                <div key={faq.id} className="bg-white/5 border border-amber-100/10 rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setExpandedTimeline(expandedTimeline === faq.id ? null : faq.id)}
+                    className="w-full p-6 flex justify-between items-start hover:bg-white/10 transition cursor-pointer">
+                    <div className="text-left flex-1">
+                      <p className="font-light text-white">{faq.question}</p>
+                      <p className="text-xs text-amber-100/50 mt-2">{faq.isFromGuest ? 'Gast Frage' : 'Admin'}</p>
+                    </div>
+                    <ChevronDown size={20} className={`text-white/40 transition ${expandedTimeline === faq.id ? 'rotate-180' : ''} flex-shrink-0`} />
+                  </button>
+
+                  {expandedTimeline === faq.id && (
+                    <div className="border-t border-amber-100/10 p-6 space-y-4 bg-white/5">
+                      {userRole === 'admin' && !faq.answer ? (
+                        <textarea 
+                          defaultValue={faq.answer}
+                          onBlur={(e) => updateFaqAnswer(faq.id, e.target.value)}
+                          placeholder="Antwort eingeben..."
+                          rows="3"
+                          className="w-full bg-white/10 border border-amber-100/20 rounded px-3 py-2 text-sm text-white placeholder-white/40"
+                        />
+                      ) : (
+                        <div>
+                          <p className="text-white/70 text-sm font-light mb-3">{faq.answer || 'Noch keine Antwort'}</p>
+                          {userRole === 'admin' && faq.answer && (
+                            <button
+                              onClick={() => {
+                                const newAnswer = prompt('Antwort bearbeiten:', faq.answer);
+                                if (newAnswer !== null) updateFaqAnswer(faq.id, newAnswer);
+                              }}
+                              className="text-amber-400 hover:text-amber-300 text-sm font-light">
+                              ✏️ Bearbeiten
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           </div>
@@ -706,7 +807,7 @@ export default function HochzeitsApp() {
         {/* FOTOS */}
         {currentPage === 'fotos' && (
           <div className="max-w-2xl mx-auto px-4 py-16 space-y-12">
-            <h2 className="text-3xl font-light text-white">Fotogalerie</h2>
+            <h2 className="text-3xl font-light text-white script-font" style={{ fontWeight: 400 }}>Fotogalerie</h2>
 
             {userRole === 'admin' && (
               <div className="bg-white/5 border border-amber-100/20 rounded-lg p-8 space-y-6">
@@ -735,7 +836,7 @@ export default function HochzeitsApp() {
                 {siteContent.googleDriveUploadLink && (
                   <div className="bg-white/10 rounded-lg p-6 border border-amber-100/10">
                     <h3 className="text-lg font-light text-white mb-4">Fotos hochladen</h3>
-                    <p className="text-white/70 text-sm font-light whitespace-pre-line mb-4">{siteContent.googleDriveUploadLink}</p>
+                    <p className="text-white/70 text-sm font-light whitespace-pre-line">{siteContent.googleDriveUploadLink}</p>
                   </div>
                 )}
                 <a 
@@ -757,50 +858,88 @@ export default function HochzeitsApp() {
         {/* ADMIN */}
         {currentPage === 'admin' && userRole === 'admin' && (
           <div className="max-w-2xl mx-auto px-4 py-16 space-y-12">
-            <h2 className="text-3xl font-light text-white">Admin</h2>
+            <h2 className="text-3xl font-light text-white script-font" style={{ fontWeight: 400 }}>Admin</h2>
 
-            <div className="space-y-6">
-              <h3 className="text-xl font-light text-white">Gäste</h3>
-              <form onSubmit={handleAddGuest} className="flex gap-2">
-                <input 
-                  type="text"
-                  value={newGuestData.name}
-                  onChange={(e) => setNewGuestData({...newGuestData, name: e.target.value})}
-                  placeholder="Name"
-                  className="flex-1 bg-white/5 border border-amber-100/20 rounded-lg px-4 py-2 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-amber-100/30"
-                  required
-                />
-                <button className="bg-amber-900/40 text-white px-4 py-2 rounded-lg">
-                  <Plus size={18} />
+            {/* Tabs */}
+            <div className="flex gap-4 border-b border-amber-100/10">
+              {['guests', 'overview'].map(tab => (
+                <button 
+                  key={tab}
+                  onClick={() => setAdminTab(tab)}
+                  className={`py-3 px-4 font-light text-sm transition ${adminTab === tab ? 'text-white border-b-2 border-amber-400' : 'text-white/50 hover:text-white'}`}>
+                  {tab === 'guests' ? 'Gäste' : 'Übersicht'}
                 </button>
-              </form>
-
-              <div className="space-y-2">
-                {guestList.map(guest => (
-                  <div key={guest.id} className="flex items-center justify-between p-3 bg-white/5 border border-amber-100/10 rounded-lg text-sm">
-                    <div>
-                      <p className="text-white/70">{guest.name}</p>
-                      <p className="text-amber-100/50 font-mono text-xs">{guest.code}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button 
-                        onClick={() => {
-                          navigator.clipboard.writeText(guest.code);
-                          alert('✓');
-                        }}
-                        className="text-white/50 hover:text-white">
-                        <Copy size={16} />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteGuest(guest.id)}
-                        className="text-white/50 hover:text-red-400">
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              ))}
             </div>
+
+            {/* Guests Tab */}
+            {adminTab === 'guests' && (
+              <div className="space-y-6">
+                <form onSubmit={handleAddGuest} className="flex gap-2">
+                  <input 
+                    type="text"
+                    value={newGuestData.name}
+                    onChange={(e) => setNewGuestData({...newGuestData, name: e.target.value})}
+                    placeholder="Name"
+                    className="flex-1 bg-white/5 border border-amber-100/20 rounded-lg px-4 py-2 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-amber-100/30"
+                    required
+                  />
+                  <button className="bg-amber-900/40 text-white px-4 py-2 rounded-lg">
+                    <Plus size={18} />
+                  </button>
+                </form>
+
+                <div className="space-y-2">
+                  {guestList.map(guest => (
+                    <div key={guest.id} className="flex items-center justify-between p-3 bg-white/5 border border-amber-100/10 rounded-lg text-sm">
+                      <div>
+                        <p className="text-white/70">{guest.name}</p>
+                        <p className="text-amber-100/50 font-mono text-xs">{guest.code}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(guest.code);
+                            alert('✓');
+                          }}
+                          className="text-white/50 hover:text-white">
+                          <Copy size={16} />
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteGuest(guest.id)}
+                          className="text-white/50 hover:text-red-400">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Overview Tab */}
+            {adminTab === 'overview' && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-6">
+                  <div className="bg-white/10 rounded-lg p-6 text-center border border-amber-100/10">
+                    <p className="text-sm text-amber-100/70 uppercase mb-2">Gesamt Zusagen</p>
+                    <p className="text-4xl font-light text-white">{attendingCount}</p>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-6 text-center border border-amber-100/10">
+                    <p className="text-sm text-amber-100/70 uppercase mb-2">Absagen</p>
+                    <p className="text-4xl font-light text-white">{rsvpData.filter(r => r.attending === false).length}</p>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-6 text-center border border-amber-100/10">
+                    <p className="text-sm text-amber-100/70 uppercase mb-2">Erwachsene</p>
+                    <p className="text-4xl font-light text-white">{totalAdults}</p>
+                  </div>
+                  <div className="bg-white/10 rounded-lg p-6 text-center border border-amber-100/10">
+                    <p className="text-sm text-amber-100/70 uppercase mb-2">Kinder</p>
+                    <p className="text-4xl font-light text-white">{totalChildren}</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
