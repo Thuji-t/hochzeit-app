@@ -9,6 +9,7 @@ export default function HochzeitsApp() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [editingSection, setEditingSection] = useState(null);
   const [heroImageLoaded, setHeroImageLoaded] = useState(false);
+  const [expandedTimeline, setExpandedTimeline] = useState(null);
 
   const [guestList, setGuestList] = useState([]);
   const [rsvpData, setRsvpData] = useState([]);
@@ -24,20 +25,20 @@ export default function HochzeitsApp() {
     rsvpDeadline: '31. Mai 2025',
     heroImage: null,
     timeline: [
-      { time: '16:00', event: 'Ankunft & Empfang' },
-      { time: '17:00', event: 'Zeremonie' },
-      { time: '18:30', event: 'Aperitif & Fotos' },
-      { time: '19:00', event: 'Dinner' },
-      { time: '21:00', event: 'Tanz & Feier' }
+      { time: '16:00', event: 'Ankunft & Empfang', subItems: [] },
+      { time: '17:00', event: 'Zeremonie', subItems: [] },
+      { time: '18:30', event: 'Aperitif & Fotos', subItems: [] },
+      { time: '19:00', event: 'Dinner', subItems: ['Südindisches Thali (V)', 'Tandoori Huhn', 'Fisch-Curry'] },
+      { time: '21:00', event: 'Tanz & Feier', subItems: [] }
     ],
     googleDriveLink: '',
-    menuItems: ['Südindisches Thali (V)', 'Tandoori Huhn', 'Fisch-Curry', 'Lamm-Biryani']
+    googleDriveUploadLink: ''
   });
 
   const [loginData, setLoginData] = useState({ name: '', code: '' });
   const [adminPassword, setAdminPassword] = useState('');
   const [newGuestData, setNewGuestData] = useState({ name: '', email: '' });
-  const [rsvpForm, setRsvpForm] = useState({ attending: null, adults: 1, children: 0, mainCourse: '' });
+  const [rsvpForm, setRsvpForm] = useState({ attending: null, adults: 1, children: 0 });
   const [newFaqQuestion, setNewFaqQuestion] = useState('');
 
   useEffect(() => {
@@ -52,7 +53,6 @@ export default function HochzeitsApp() {
     if (saved.content) setSiteContent(JSON.parse(saved.content));
     if (saved.faq) setFaqList(JSON.parse(saved.faq));
     
-    // Trigger hero image load animation
     setTimeout(() => setHeroImageLoaded(true), 100);
   }, []);
 
@@ -126,7 +126,7 @@ export default function HochzeitsApp() {
     updated.push(newRsvp);
     setRsvpData(updated);
     save('hochzeitsRSVP', updated);
-    setRsvpForm({ attending: null, adults: 1, children: 0, mainCourse: '' });
+    setRsvpForm({ attending: null, adults: 1, children: 0 });
     alert('Danke!');
     setCurrentPage('home');
   };
@@ -158,7 +158,6 @@ export default function HochzeitsApp() {
 
   const attendingCount = rsvpData.filter(r => r.attending === true).length;
 
-  // ===== STYLES =====
   const styles = `
     @keyframes fadeIn {
       from { opacity: 0; }
@@ -172,10 +171,9 @@ export default function HochzeitsApp() {
   // ===== LOGIN =====
   if (!userRole) {
     return (
-      <div className="min-h-screen bg-black relative overflow-hidden">
+      <div className="min-h-screen bg-black relative overflow-hidden" style={{ fontFamily: 'Segoe UI, Roboto, sans-serif' }}>
         <style>{styles}</style>
 
-        {/* Hero Background Image */}
         {siteContent.heroImage && (
           <div 
             className={`absolute inset-0 bg-cover bg-center ${heroImageLoaded ? 'fade-in' : 'opacity-0'}`}
@@ -185,28 +183,21 @@ export default function HochzeitsApp() {
           </div>
         )}
 
-        {/* Blumen Dekoration */}
-        <div className="absolute top-6 right-8 text-6xl opacity-60 z-10">🌸</div>
-        <div className="absolute top-32 right-20 text-5xl opacity-50 z-10">🌼</div>
-        <div className="absolute bottom-32 left-6 text-5xl opacity-60 z-10">🌸</div>
-        <div className="absolute bottom-48 left-20 text-6xl opacity-50 z-10">🌼</div>
-
         <div className="relative z-20 min-h-screen flex flex-col items-center justify-center p-4">
           {currentPage === 'login' ? (
             <div className="text-center max-w-md w-full space-y-16">
-              <style>{styles}</style>
               <div className="space-y-6 fade-in">
                 <p className="text-sm uppercase tracking-widest text-amber-100/90 font-light">Wedding Invitation</p>
-                <h1 style={{ fontFamily: 'Georgia, serif' }} className="text-7xl text-white font-light italic leading-tight mb-3">
+                <h1 className="text-6xl text-white font-light leading-tight mb-3" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}>
                   {siteContent.coupleNames.split(' & ')[0]}
                 </h1>
                 <p className="text-amber-100/70 text-sm font-light">and</p>
-                <h1 style={{ fontFamily: 'Georgia, serif' }} className="text-7xl text-white font-light italic leading-tight">
+                <h1 className="text-6xl text-white font-light leading-tight" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}>
                   {siteContent.coupleNames.split(' & ')[1]}
                 </h1>
               </div>
 
-              <p className="text-amber-100/80 text-sm font-light leading-relaxed">Please enter the password to view the invitation.</p>
+              <p className="text-amber-100/80 text-sm font-light leading-relaxed">Please enter your name and code to view the invitation.</p>
 
               <form onSubmit={handleLogin} className="space-y-4">
                 <input 
@@ -221,7 +212,7 @@ export default function HochzeitsApp() {
                   type="text" 
                   value={loginData.code}
                   onChange={(e) => setLoginData({...loginData, code: e.target.value.toUpperCase()})}
-                  placeholder="Password"
+                  placeholder="Code"
                   className="w-full bg-white/10 border border-amber-100/40 rounded-full px-6 py-3 text-white placeholder-white/50 text-center font-mono text-sm focus:outline-none focus:ring-2 focus:ring-amber-100/60 backdrop-blur-sm"
                   required
                 />
@@ -270,7 +261,7 @@ export default function HochzeitsApp() {
 
   // ===== MAIN APP =====
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black" style={{ fontFamily: 'Segoe UI, Roboto, sans-serif' }}>
       <style>{styles}</style>
 
       {/* NAV */}
@@ -289,21 +280,14 @@ export default function HochzeitsApp() {
 
         {mobileMenuOpen && (
           <div className="bg-black/80 backdrop-blur-md border-t border-amber-100/10 p-4 space-y-3">
-            {['home', 'timeline', 'rsvp', 'faq'].map(page => (
+            {['home', 'timeline', 'rsvp', 'faq', 'fotos'].map(page => (
               <button 
                 key={page}
                 onClick={() => { setCurrentPage(page); setMobileMenuOpen(false); }}
                 className="block w-full text-left py-2 text-white/70 hover:text-white text-sm font-light">
-                {page === 'home' ? '🏠 Home' : page === 'timeline' ? '⏰ Ablauf' : page === 'rsvp' ? '💌 RSVP' : '❓ FAQ'}
+                {page === 'home' ? '🏠 Home' : page === 'timeline' ? '⏰ Ablauf' : page === 'rsvp' ? '💌 RSVP' : page === 'faq' ? '❓ FAQ' : '📸 Fotos'}
               </button>
             ))}
-            {siteContent.googleDriveLink && (
-              <button 
-                onClick={() => { setCurrentPage('fotos'); setMobileMenuOpen(false); }}
-                className="block w-full text-left py-2 text-white/70 hover:text-white text-sm font-light">
-                📸 Fotos
-              </button>
-            )}
             {userRole === 'admin' && (
               <button 
                 onClick={() => { setCurrentPage('admin'); setMobileMenuOpen(false); }}
@@ -336,10 +320,6 @@ export default function HochzeitsApp() {
               ) : (
                 <div className="absolute inset-0 bg-gradient-to-b from-amber-900/20 to-black" />
               )}
-              
-              {/* Dekoration */}
-              <div className="absolute top-12 right-12 text-6xl opacity-40">🌸</div>
-              <div className="absolute bottom-32 left-10 text-5xl opacity-40">🌼</div>
 
               {userRole === 'admin' && (
                 <button 
@@ -367,7 +347,7 @@ export default function HochzeitsApp() {
                 </div>
               )}
 
-              {/* Invitation Card Center */}
+              {/* Invitation Card */}
               <div className="absolute inset-0 flex items-center justify-center px-4">
                 <div className="max-w-2xl w-full bg-black/50 backdrop-blur-md border border-amber-100/20 rounded-2xl p-12 text-center space-y-8 fade-in">
                   {userRole === 'admin' && (
@@ -385,12 +365,42 @@ export default function HochzeitsApp() {
                         value={siteContent.coupleNames}
                         onChange={(e) => updateContent('coupleNames', e.target.value)}
                         className="w-full bg-white/10 border border-amber-100/20 rounded px-4 py-2 text-white text-center"
+                        placeholder="Namen"
+                      />
+                      <input 
+                        type="text"
+                        value={siteContent.weddingDate}
+                        onChange={(e) => updateContent('weddingDate', e.target.value)}
+                        className="w-full bg-white/10 border border-amber-100/20 rounded px-4 py-2 text-white text-center"
+                        placeholder="Datum"
+                      />
+                      <input 
+                        type="text"
+                        value={siteContent.weddingTime}
+                        onChange={(e) => updateContent('weddingTime', e.target.value)}
+                        className="w-full bg-white/10 border border-amber-100/20 rounded px-4 py-2 text-white text-center"
+                        placeholder="Zeit"
+                      />
+                      <input 
+                        type="text"
+                        value={siteContent.venue}
+                        onChange={(e) => updateContent('venue', e.target.value)}
+                        className="w-full bg-white/10 border border-amber-100/20 rounded px-4 py-2 text-white text-center"
+                        placeholder="Ort"
+                      />
+                      <input 
+                        type="text"
+                        value={siteContent.address}
+                        onChange={(e) => updateContent('address', e.target.value)}
+                        className="w-full bg-white/10 border border-amber-100/20 rounded px-4 py-2 text-white text-center"
+                        placeholder="Adresse"
                       />
                       <textarea 
                         value={siteContent.description}
                         onChange={(e) => updateContent('description', e.target.value)}
                         rows="3"
                         className="w-full bg-white/10 border border-amber-100/20 rounded px-4 py-2 text-white text-sm"
+                        placeholder="Beschreibung"
                       />
                     </div>
                   ) : (
@@ -398,11 +408,11 @@ export default function HochzeitsApp() {
                       <p className="text-xs uppercase tracking-widest text-amber-100/70 font-light">Wedding Invitation</p>
                       
                       <div className="space-y-4">
-                        <h1 style={{ fontFamily: 'Georgia, serif' }} className="text-6xl text-white font-light italic">
+                        <h1 className="text-6xl text-white font-light leading-tight" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}>
                           {siteContent.coupleNames.split(' & ')[0]}
                         </h1>
                         <p className="text-amber-100/60 text-sm">and</p>
-                        <h1 style={{ fontFamily: 'Georgia, serif' }} className="text-6xl text-white font-light italic">
+                        <h1 className="text-6xl text-white font-light leading-tight" style={{ fontFamily: 'Montserrat, sans-serif', fontWeight: 300 }}>
                           {siteContent.coupleNames.split(' & ')[1]}
                         </h1>
                       </div>
@@ -432,14 +442,21 @@ export default function HochzeitsApp() {
               </div>
             </div>
 
-            {/* CTA */}
+            {/* CTA Section */}
             {userRole && (
               <div className="bg-black px-4 py-12">
-                <button 
-                  onClick={() => setCurrentPage('rsvp')}
-                  className="max-w-2xl mx-auto w-full bg-amber-900/40 hover:bg-amber-900/60 text-white border border-amber-100/30 py-4 rounded-lg transition font-light">
-                  Zur Zusage
-                </button>
+                <div className="max-w-2xl mx-auto flex flex-col gap-4">
+                  <button 
+                    onClick={() => setCurrentPage('rsvp')}
+                    className="w-full bg-amber-900/40 hover:bg-amber-900/60 text-white border border-amber-100/30 py-4 rounded-lg transition font-light">
+                    Zur Zusage
+                  </button>
+                  <button 
+                    onClick={() => setCurrentPage('fotos')}
+                    className="w-full bg-amber-900/20 hover:bg-amber-900/40 text-white border border-amber-100/20 py-4 rounded-lg transition font-light">
+                    Zur Fotogalerie
+                  </button>
+                </div>
               </div>
             )}
 
@@ -469,43 +486,118 @@ export default function HochzeitsApp() {
             <div className="flex justify-between items-center">
               <h2 className="text-3xl font-light text-white">Ablauf</h2>
               {userRole === 'admin' && (
-                <button 
-                  onClick={() => setEditingSection(editingSection === 'timeline' ? null : 'timeline')}
-                  className="text-white/60 hover:text-white">
-                  {editingSection === 'timeline' ? <Save size={20} /> : <Edit2 size={20} />}
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => {
+                      const newItem = { time: '', event: '', subItems: [] };
+                      const updated = [...siteContent.timeline, newItem];
+                      updateContent('timeline', updated);
+                    }}
+                    className="text-white/60 hover:text-white">
+                    <Plus size={20} />
+                  </button>
+                  <button 
+                    onClick={() => setEditingSection(editingSection === 'timeline' ? null : 'timeline')}
+                    className="text-white/60 hover:text-white">
+                    {editingSection === 'timeline' ? <Save size={20} /> : <Edit2 size={20} />}
+                  </button>
+                </div>
               )}
             </div>
 
             <div className="space-y-3">
               {siteContent.timeline.map((item, idx) => (
-                <div key={idx} className="flex gap-6 p-6 bg-white/5 border border-amber-100/10 rounded-lg">
+                <div key={idx} className="bg-white/5 border border-amber-100/10 rounded-lg overflow-hidden">
                   {editingSection === 'timeline' ? (
-                    <>
-                      <input 
-                        type="text"
-                        value={item.time}
-                        onChange={(e) => {
-                          const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, time: e.target.value} : i);
-                          updateContent('timeline', updated);
-                        }}
-                        className="w-20 bg-white/10 border border-amber-100/20 rounded px-2 py-1 font-mono text-sm text-white"
-                      />
-                      <input 
-                        type="text"
-                        value={item.event}
-                        onChange={(e) => {
-                          const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, event: e.target.value} : i);
-                          updateContent('timeline', updated);
-                        }}
-                        className="flex-1 bg-white/10 border border-amber-100/20 rounded px-2 py-1 text-sm text-white"
-                      />
-                    </>
+                    <div className="p-6 space-y-4">
+                      <div className="flex gap-4">
+                        <input 
+                          type="text"
+                          value={item.time}
+                          onChange={(e) => {
+                            const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, time: e.target.value} : i);
+                            updateContent('timeline', updated);
+                          }}
+                          className="w-24 bg-white/10 border border-amber-100/20 rounded px-2 py-1 font-mono text-sm text-white"
+                          placeholder="Zeit"
+                        />
+                        <input 
+                          type="text"
+                          value={item.event}
+                          onChange={(e) => {
+                            const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, event: e.target.value} : i);
+                            updateContent('timeline', updated);
+                          }}
+                          className="flex-1 bg-white/10 border border-amber-100/20 rounded px-2 py-1 text-sm text-white"
+                          placeholder="Event"
+                        />
+                        <button 
+                          onClick={() => {
+                            const updated = siteContent.timeline.filter((_, i2) => i2 !== idx);
+                            updateContent('timeline', updated);
+                          }}
+                          className="text-red-400 hover:text-red-300">
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+
+                      {/* Unterpunkte */}
+                      <div className="ml-4 space-y-2 border-t border-amber-100/10 pt-4">
+                        <p className="text-xs text-amber-100/60 uppercase">Unterpunkte</p>
+                        {item.subItems && item.subItems.map((sub, subIdx) => (
+                          <div key={subIdx} className="flex gap-2">
+                            <input 
+                              type="text"
+                              value={sub}
+                              onChange={(e) => {
+                                const newSubs = item.subItems.map((s, si) => si === subIdx ? e.target.value : s);
+                                const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, subItems: newSubs} : i);
+                                updateContent('timeline', updated);
+                              }}
+                              className="flex-1 bg-white/10 border border-amber-100/20 rounded px-2 py-1 text-sm text-white"
+                              placeholder="Unterpunkt"
+                            />
+                            <button 
+                              onClick={() => {
+                                const newSubs = item.subItems.filter((_, si) => si !== subIdx);
+                                const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, subItems: newSubs} : i);
+                                updateContent('timeline', updated);
+                              }}
+                              className="text-red-400 hover:text-red-300">
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        ))}
+                        <button 
+                          onClick={() => {
+                            const newSubs = [...(item.subItems || []), ''];
+                            const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, subItems: newSubs} : i);
+                            updateContent('timeline', updated);
+                          }}
+                          className="text-amber-100/60 hover:text-amber-100 text-sm flex items-center gap-1">
+                          <Plus size={14} /> Unterpunkt hinzufügen
+                        </button>
+                      </div>
+                    </div>
                   ) : (
-                    <>
+                    <div 
+                      onClick={() => item.subItems && item.subItems.length > 0 && setExpandedTimeline(expandedTimeline === idx ? null : idx)}
+                      className={`p-6 flex gap-6 cursor-pointer hover:bg-white/10 transition ${item.subItems && item.subItems.length > 0 ? '' : 'cursor-default'}`}>
                       <p className="font-mono text-amber-100/70 w-20">{item.time}</p>
-                      <p className="text-white/70 font-light">{item.event}</p>
-                    </>
+                      <div className="flex-1">
+                        <p className="text-white/70 font-light">{item.event}</p>
+                        {item.subItems && item.subItems.length > 0 && expandedTimeline === idx && (
+                          <div className="mt-4 space-y-2 border-t border-amber-100/10 pt-4">
+                            {item.subItems.map((sub, subIdx) => (
+                              <p key={subIdx} className="text-white/50 text-sm font-light ml-4">• {sub}</p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {item.subItems && item.subItems.length > 0 && (
+                        <ChevronDown size={20} className={`text-white/40 transition ${expandedTimeline === idx ? 'rotate-180' : ''}`} />
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
@@ -537,42 +629,23 @@ export default function HochzeitsApp() {
               </div>
 
               {rsvpForm.attending && (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    {[
-                      { label: 'Erwachsene', key: 'adults' },
-                      { label: 'Kinder', key: 'children' }
-                    ].map(field => (
-                      <div key={field.key}>
-                        <label className="block text-xs text-amber-100 uppercase mb-2">{field.label}</label>
-                        <input 
-                          type="number" 
-                          min={field.key === 'children' ? 0 : 1}
-                          value={rsvpForm[field.key]}
-                          onChange={(e) => setRsvpForm({...rsvpForm, [field.key]: parseInt(e.target.value)})}
-                          className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-1 focus:ring-amber-100/30"
-                        />
-                      </div>
-                    ))}
-                  </div>
-
-                  <div>
-                    <label className="block text-xs text-amber-100 uppercase mb-3">Hauptgericht</label>
-                    <div className="space-y-2">
-                      {siteContent.menuItems.map(item => (
-                        <label key={item} className="flex items-center p-3 bg-white/5 rounded-lg cursor-pointer hover:bg-white/10 transition border border-amber-100/10">
-                          <input 
-                            type="radio" 
-                            checked={rsvpForm.mainCourse === item}
-                            onChange={() => setRsvpForm({...rsvpForm, mainCourse: item})}
-                            className="mr-3"
-                          />
-                          <span className="text-white/70 text-sm">{item}</span>
-                        </label>
-                      ))}
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { label: 'Erwachsene', key: 'adults' },
+                    { label: 'Kinder (0-14)', key: 'children' }
+                  ].map(field => (
+                    <div key={field.key}>
+                      <label className="block text-xs text-amber-100 uppercase mb-2">{field.label}</label>
+                      <input 
+                        type="number" 
+                        min={field.key === 'children' ? 0 : 1}
+                        value={rsvpForm[field.key]}
+                        onChange={(e) => setRsvpForm({...rsvpForm, [field.key]: parseInt(e.target.value)})}
+                        className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-1 focus:ring-amber-100/30"
+                      />
                     </div>
-                  </div>
-                </>
+                  ))}
+                </div>
               )}
 
               <button 
@@ -631,16 +704,53 @@ export default function HochzeitsApp() {
         )}
 
         {/* FOTOS */}
-        {currentPage === 'fotos' && siteContent.googleDriveLink && (
-          <div className="max-w-2xl mx-auto px-4 py-20 text-center">
-            <h2 className="text-3xl font-light text-white mb-12">Fotos</h2>
-            <a 
-              href={siteContent.googleDriveLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-block bg-amber-900/40 hover:bg-amber-900/60 text-white border border-amber-100/30 px-12 py-4 rounded-lg transition font-light">
-              Zur Galerie →
-            </a>
+        {currentPage === 'fotos' && (
+          <div className="max-w-2xl mx-auto px-4 py-16 space-y-12">
+            <h2 className="text-3xl font-light text-white">Fotogalerie</h2>
+
+            {userRole === 'admin' && (
+              <div className="bg-white/5 border border-amber-100/20 rounded-lg p-8 space-y-6">
+                <h3 className="text-xl font-light text-white">Google Drive Link</h3>
+                <input 
+                  type="text"
+                  value={siteContent.googleDriveLink}
+                  onChange={(e) => updateContent('googleDriveLink', e.target.value)}
+                  placeholder="https://drive.google.com/..."
+                  className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 text-sm font-mono text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-amber-100/30"
+                />
+                
+                <h3 className="text-xl font-light text-white pt-4 border-t border-amber-100/10">Anleitung für Gäste</h3>
+                <textarea 
+                  value={siteContent.googleDriveUploadLink}
+                  onChange={(e) => updateContent('googleDriveUploadLink', e.target.value)}
+                  rows="4"
+                  placeholder="Wie laden Gäste Fotos hoch? (z.B. Link zum Upload Ordner)"
+                  className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-amber-100/30"
+                />
+              </div>
+            )}
+
+            {siteContent.googleDriveLink ? (
+              <div className="bg-white/5 border border-amber-100/20 rounded-lg p-8 space-y-6 text-center">
+                {siteContent.googleDriveUploadLink && (
+                  <div className="bg-white/10 rounded-lg p-6 border border-amber-100/10">
+                    <h3 className="text-lg font-light text-white mb-4">Fotos hochladen</h3>
+                    <p className="text-white/70 text-sm font-light whitespace-pre-line mb-4">{siteContent.googleDriveUploadLink}</p>
+                  </div>
+                )}
+                <a 
+                  href={siteContent.googleDriveLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block bg-amber-900/40 hover:bg-amber-900/60 text-white border border-amber-100/30 px-12 py-4 rounded-lg transition font-light">
+                  Zur Google Drive Galerie →
+                </a>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-white/50 font-light">Admin: Bitte Google Drive Link hinzufügen</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -690,17 +800,6 @@ export default function HochzeitsApp() {
                   </div>
                 ))}
               </div>
-            </div>
-
-            <div className="space-y-4 border-t border-amber-100/10 pt-8">
-              <h3 className="text-xl font-light text-white">Google Drive</h3>
-              <input 
-                type="text"
-                value={siteContent.googleDriveLink}
-                onChange={(e) => updateContent('googleDriveLink', e.target.value)}
-                placeholder="https://drive.google.com/..."
-                className="w-full bg-white/5 border border-amber-100/20 rounded-lg px-4 py-3 text-sm font-mono text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-amber-100/30"
-              />
             </div>
           </div>
         )}
