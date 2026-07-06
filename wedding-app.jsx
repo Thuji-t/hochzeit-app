@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, LogOut, Edit2, Save, Plus, Trash2, Copy, ChevronDown, Lock, Settings } from 'lucide-react';
-import { supabase } from './supabaseConfig';
+import { createClient } from '@supabase/supabase-js';
+
+// ===== SUPABASE CONFIG (DIREKT HIER!) =====
+const SUPABASE_URL = 'https://qlqgqwmprrjvdwovrwix.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_JfOaxa3q1VtN7Febzqru0Q_dtL34Xmh';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 export default function HochzeitsApp() {
   const [currentPage, setCurrentPage] = useState('login');
