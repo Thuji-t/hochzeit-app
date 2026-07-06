@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, LogOut, Edit2, Save, Plus, Trash2, Copy, ChevronDown, Lock, Settings } from 'lucide-react';
+import { supabase } from './supabaseConfig';
 
 export default function HochzeitsApp() {
-  const BACKUP_ADMIN_PASSWORD = 'BACKUP2024';
-
   const [currentPage, setCurrentPage] = useState('login');
   const [userRole, setUserRole] = useState(null);
   const [userName, setUserName] = useState(null);
@@ -12,65 +11,105 @@ export default function HochzeitsApp() {
   const [editingSection, setEditingSection] = useState(null);
   const [expandedTimeline, setExpandedTimeline] = useState(null);
   const [adminTab, setAdminTab] = useState('guests');
+  const [loading, setLoading] = useState(true);
 
-  const defaultContent = {
-    coupleNames: 'Bira & Partner',
-    weddingDate: '14. Juni 2025',
-    weddingTime: '16:00 - 23:00 Uhr',
-    venue: 'Royal am See',
-    address: 'Amlaching 2, 83346 Polling, Bayern',
-    description: 'Wir laden euch herzlich zu unserer Hochzeit ein. Ein Tag voller Liebe, Farben und Freude, an dem wir gerne mit euch feiern möchten.',
-    rsvpDeadline: '31. Mai 2025',
-    heroImage: null,
-    timeline: [
-      { time: '16:00', event: 'Ankunft & Empfang', subItems: [] },
-      { time: '17:00', event: 'Zeremonie', subItems: [] },
-      { time: '18:30', event: 'Aperitif & Fotos', subItems: [] },
-      { time: '19:00', event: 'Dinner', subItems: ['Südindisches Thali (V)', 'Tandoori Huhn', 'Fisch-Curry'] },
-      { time: '21:00', event: 'Tanz & Feier', subItems: [] }
-    ],
-    googleDriveLink: '',
-    googleDriveUploadLink: '',
-    adminPassword: 'Hochzeit2024',
-    tabAvailability: {
-      timeline: true,
-      rsvp: true,
-      faq: true,
-      fotos: true
-    }
-  };
-
-  // Lade gespeicherte Content oder nutze defaults
-  const savedContent = localStorage.getItem('hochzeitsContent');
-  const initialContent = savedContent ? JSON.parse(savedContent) : defaultContent;
-
+  // LOCAL: Nur Admin hat Zugriff - Passwörter bleiben lokal!
   const [guestList, setGuestList] = useState(() => {
     const saved = localStorage.getItem('hochzeitsGaesteListe');
     return saved ? JSON.parse(saved) : [];
   });
-  const [rsvpData, setRsvpData] = useState(() => {
-    const saved = localStorage.getItem('hochzeitsRSVP');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [faqList, setFaqList] = useState(() => {
-    const saved = localStorage.getItem('hochzeitsFAQ');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [siteContent, setSiteContent] = useState(initialContent);
+  const [adminPassword, setAdminPassword] = useState('Hochzeit2024');
 
+  // CLOUD: Aus Supabase laden
+  const [siteContent, setSiteContent] = useState(null);
+  const [rsvpData, setRsvpData] = useState([]);
+  const [faqList, setFaqList] = useState([]);
+  const [cloudGuests, setCloudGuests] = useState([]);
+
+  // UI State
   const [loginData, setLoginData] = useState({ name: '', code: '' });
-  const [adminPassword, setAdminPassword] = useState('');
+  const [adminLoginPassword, setAdminLoginPassword] = useState('');
   const [newGuestData, setNewGuestData] = useState({ name: '', password: '' });
   const [rsvpForm, setRsvpForm] = useState({ attending: null, adults: 1, children: 0 });
   const [newFaqQuestion, setNewFaqQuestion] = useState('');
   const [editingGuestId, setEditingGuestId] = useState(null);
   const [editingGuestData, setEditingGuestData] = useState({ name: '', password: '' });
 
-  const save = (key, data) => localStorage.setItem(key, JSON.stringify(data));
-  const updateContent = (key, value) => {
-    const updated = { ...siteContent, [key]: value };
-    setSiteContent(updated);
-    save('hochzeitsContent', updated);
+  // ===== SUPABASE LOAD =====
+  useEffect(() => {
+    loadAllFromSupabase();
+  }, []);
+
+  const loadAllFromSupabase = async () => {
+    try {
+      setLoading(true);
+
+      // Lade site_content
+      const { data: contentData } = await supabase
+        .from('site_content')
+        .select('*')
+        .eq('id', 1)
+        .single();
+
+      if (contentData) {
+        setSiteContent({
+          coupleNames: contentData.couple_names,
+          weddingDate: contentData.wedding_date,
+          weddingTime: contentData.wedding_time,
+          venue: contentData.venue,
+          address: contentData.address,
+          description: contentData.description,
+          rsvpDeadline: contentData.rsvp_deadline,
+          heroImage: contentData.hero_image,
+          timeline: contentData.timeline || [],
+          googleDriveLink: contentData.google_drive_link,
+          googleDriveUploadLink: contentData.google_drive_upload_link,
+          tabAvailability: contentData.tab_availability || { timeline: true, rsvp: true, faq: true, fotos: true }
+        });
+      }
+
+      // Lade Gäste-Namen von Cloud
+      const { data: guestsData } = await supabase.from('guests').select('*');
+      setCloudGuests(guestsData || []);
+
+      // Lade RSVP
+      const { data: rsvpDataCloud } = await supabase.from('rsvp_responses').select('*');
+      setRsvpData(rsvpDataCloud || []);
+
+      // Lade FAQ
+      const { data: faqDataCloud } = await supabase.from('faq').select('*');
+      setFaqList(faqDataCloud || []);
+
+      setLoading(false);
+    } catch (error) {
+      console.error('Supabase Error:', error);
+      setLoading(false);
+    }
+  };
+
+  // ===== SAVE FUNCTIONS =====
+  const updateSiteContent = async (updates) => {
+    const newContent = { ...siteContent, ...updates };
+    setSiteContent(newContent);
+
+    try {
+      await supabase.from('site_content').update({
+        couple_names: newContent.coupleNames,
+        wedding_date: newContent.weddingDate,
+        wedding_time: newContent.weddingTime,
+        venue: newContent.venue,
+        address: newContent.address,
+        description: newContent.description,
+        rsvp_deadline: newContent.rsvpDeadline,
+        hero_image: newContent.heroImage,
+        timeline: newContent.timeline,
+        google_drive_link: newContent.googleDriveLink,
+        google_drive_upload_link: newContent.googleDriveUploadLink,
+        tab_availability: newContent.tabAvailability
+      }).eq('id', 1);
+    } catch (error) {
+      console.error('Update Error:', error);
+    }
   };
 
   const toggleTabAvailability = (tab) => {
@@ -78,12 +117,15 @@ export default function HochzeitsApp() {
       ...siteContent.tabAvailability,
       [tab]: !siteContent.tabAvailability[tab]
     };
-    updateContent('tabAvailability', updated);
+    updateSiteContent({ tabAvailability: updated });
   };
 
+  // ===== AUTH =====
   const handleLogin = (e) => {
     e.preventDefault();
-    const guest = guestList.find(g => g.name.toLowerCase() === loginData.name.toLowerCase() && g.password === loginData.code);
+    const guest = guestList.find(
+      g => g.name.toLowerCase() === loginData.name.toLowerCase() && g.password === loginData.code
+    );
     if (guest) {
       setUserCode(guest.password);
       setUserRole('guest');
@@ -97,11 +139,11 @@ export default function HochzeitsApp() {
 
   const handleAdminLogin = (e) => {
     e.preventDefault();
-    if (adminPassword === siteContent.adminPassword || adminPassword === BACKUP_ADMIN_PASSWORD) {
+    if (adminLoginPassword === adminPassword) {
       setUserRole('admin');
       setUserName('Admin');
       setCurrentPage('home');
-      setAdminPassword('');
+      setAdminLoginPassword('');
     } else {
       alert('Falsch!');
     }
@@ -115,21 +157,36 @@ export default function HochzeitsApp() {
     setEditingSection(null);
   };
 
+  // ===== GÄSTE (LOKAL) =====
   const handleAddGuest = (e) => {
     e.preventDefault();
     if (!newGuestData.name || !newGuestData.password) return;
     const newGuest = { id: Date.now(), name: newGuestData.name, password: newGuestData.password };
     const updated = [...guestList, newGuest];
     setGuestList(updated);
-    save('hochzeitsGaesteListe', updated);
+    localStorage.setItem('hochzeitsGaesteListe', JSON.stringify(updated));
     setNewGuestData({ name: '', password: '' });
+
+    // Auch zu Cloud hinzufügen (nur Name!)
+    addGuestToCloud(newGuestData.name);
+  };
+
+  const addGuestToCloud = async (name) => {
+    try {
+      await supabase.from('guests').insert({ guest_name: name });
+      loadAllFromSupabase();
+    } catch (error) {
+      console.error('Cloud Error:', error);
+    }
   };
 
   const handleUpdateGuest = (id) => {
     if (!editingGuestData.name || !editingGuestData.password) return;
-    const updated = guestList.map(g => g.id === id ? {...g, name: editingGuestData.name, password: editingGuestData.password} : g);
+    const updated = guestList.map(g => 
+      g.id === id ? { ...g, name: editingGuestData.name, password: editingGuestData.password } : g
+    );
     setGuestList(updated);
-    save('hochzeitsGaesteListe', updated);
+    localStorage.setItem('hochzeitsGaesteListe', JSON.stringify(updated));
     setEditingGuestId(null);
     setEditingGuestData({ name: '', password: '' });
   };
@@ -138,68 +195,102 @@ export default function HochzeitsApp() {
     if (confirm('Löschen?')) {
       const updated = guestList.filter(g => g.id !== id);
       setGuestList(updated);
-      save('hochzeitsGaesteListe', updated);
+      localStorage.setItem('hochzeitsGaesteListe', JSON.stringify(updated));
     }
   };
 
-  const handleRsvp = (e) => {
+  // ===== RSVP =====
+  const handleRsvp = async (e) => {
     e.preventDefault();
     if (rsvpForm.attending === null) return;
-    const guest = guestList.find(g => g.password === userCode);
-    const newRsvp = { id: Date.now(), guestCode: userCode, guestName: guest.name, ...rsvpForm };
-    const updated = rsvpData.filter(r => r.guestCode !== userCode);
-    updated.push(newRsvp);
-    setRsvpData(updated);
-    save('hochzeitsRSVP', updated);
-    setRsvpForm({ attending: null, adults: 1, children: 0 });
-    alert('Danke!');
-    setCurrentPage('home');
+
+    try {
+      const existing = rsvpData.find(r => r.guest_name === userName);
+      
+      if (existing) {
+        await supabase.from('rsvp_responses').update({
+          attending: rsvpForm.attending,
+          adults: rsvpForm.adults,
+          children: rsvpForm.children
+        }).eq('id', existing.id);
+      } else {
+        await supabase.from('rsvp_responses').insert({
+          guest_name: userName,
+          attending: rsvpForm.attending,
+          adults: rsvpForm.adults,
+          children: rsvpForm.children
+        });
+      }
+
+      await loadAllFromSupabase();
+      setRsvpForm({ attending: null, adults: 1, children: 0 });
+      alert('Danke!');
+      setCurrentPage('home');
+    } catch (error) {
+      console.error('RSVP Error:', error);
+      alert('Fehler beim Speichern');
+    }
   };
 
-  const handleAddFaq = (e) => {
+  // ===== FAQ =====
+  const handleAddFaq = async (e) => {
     e.preventDefault();
     if (!newFaqQuestion.trim()) return;
-    const newFaq = { id: Date.now(), question: newFaqQuestion, answer: '', author: userName, isFromGuest: userRole === 'guest' };
-    const updated = [...faqList, newFaq];
-    setFaqList(updated);
-    save('hochzeitsFAQ', updated);
-    setNewFaqQuestion('');
+
+    try {
+      await supabase.from('faq').insert({
+        question: newFaqQuestion,
+        answer: '',
+        author: userName,
+        is_from_guest: userRole === 'guest'
+      });
+      await loadAllFromSupabase();
+      setNewFaqQuestion('');
+    } catch (error) {
+      console.error('FAQ Error:', error);
+    }
   };
 
-  const handleDeleteFaq = (id) => {
+  const handleDeleteFaq = async (id) => {
     const faq = faqList.find(f => f.id === id);
-    const isOwner = userRole === 'guest' && faq.author === userName && faq.isFromGuest;
-    const isAdmin = userRole === 'admin';
-    
-    if (isOwner || isAdmin) {
-      if (confirm('Löschen?')) {
-        const updated = faqList.filter(f => f.id !== id);
-        setFaqList(updated);
-        save('hochzeitsFAQ', updated);
+    const canDelete = userRole === 'admin' || (userRole === 'guest' && faq.author === userName && faq.is_from_guest);
+
+    if (canDelete && confirm('Löschen?')) {
+      try {
+        await supabase.from('faq').delete().eq('id', id);
+        await loadAllFromSupabase();
+      } catch (error) {
+        console.error('Delete Error:', error);
       }
     }
   };
 
-  const updateFaqAnswer = (id, answer) => {
-    const updated = faqList.map(f => f.id === id ? { ...f, answer } : f);
-    setFaqList(updated);
-    save('hochzeitsFAQ', updated);
+  const updateFaqAnswer = async (id, answer) => {
+    try {
+      await supabase.from('faq').update({ answer }).eq('id', id);
+      await loadAllFromSupabase();
+    } catch (error) {
+      console.error('Update Error:', error);
+    }
   };
 
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (event) => updateContent('heroImage', event.target.result);
+      reader.onload = (event) => {
+        updateSiteContent({ heroImage: event.target.result });
+      };
       reader.readAsDataURL(file);
     }
   };
 
+  // ===== STATS =====
   const attendingCount = rsvpData.filter(r => r.attending === true).length;
   const totalAdults = rsvpData.filter(r => r.attending).reduce((sum, r) => sum + (r.adults || 0), 0);
   const totalChildren = rsvpData.filter(r => r.attending).reduce((sum, r) => sum + (r.children || 0), 0);
 
-  const canAccessTab = (tab) => userRole === 'admin' || siteContent.tabAvailability[tab];
+  const canAccessTab = (tab) => userRole === 'admin' || (siteContent?.tabAvailability[tab] ?? true);
 
   const getPageTitle = () => {
     switch(currentPage) {
@@ -227,6 +318,23 @@ export default function HochzeitsApp() {
       transition: all 0.3s ease;
     }
   `;
+
+  // ===== LOADING =====
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-950 flex items-center justify-center">
+        <p className="text-white/70 font-light text-lg">Laden...</p>
+      </div>
+    );
+  }
+
+  if (!siteContent) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-950 via-emerald-950 to-slate-950 flex items-center justify-center">
+        <p className="text-white/70 font-light">Fehler beim Laden. Bitte neu laden.</p>
+      </div>
+    );
+  }
 
   // ===== LOGIN =====
   if (!userRole) {
@@ -269,7 +377,6 @@ export default function HochzeitsApp() {
                     className="w-full bg-white/8 border border-white/30 rounded-xl px-6 py-3.5 text-white placeholder-white/50 text-center text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-xl shadow-lg group-hover:border-white/40 group-hover:bg-white/10"
                     required
                   />
-                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-emerald-500/0 via-emerald-400/0 to-amber-500/0 group-hover:from-emerald-500/5 group-hover:via-emerald-400/5 group-hover:to-amber-500/5 pointer-events-none" />
                 </div>
                 <div className="relative group">
                   <input 
@@ -280,7 +387,6 @@ export default function HochzeitsApp() {
                     className="w-full bg-white/8 border border-white/30 rounded-xl px-6 py-3.5 text-white placeholder-white/50 text-center font-mono text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-xl shadow-lg group-hover:border-white/40 group-hover:bg-white/10"
                     required
                   />
-                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-emerald-500/0 via-emerald-400/0 to-amber-500/0 group-hover:from-emerald-500/5 group-hover:via-emerald-400/5 group-hover:to-amber-500/5 pointer-events-none" />
                 </div>
                 <button 
                   type="submit"
@@ -302,8 +408,8 @@ export default function HochzeitsApp() {
                 <div className="relative group">
                   <input 
                     type="password" 
-                    value={adminPassword}
-                    onChange={(e) => setAdminPassword(e.target.value)}
+                    value={adminLoginPassword}
+                    onChange={(e) => setAdminLoginPassword(e.target.value)}
                     placeholder="Password"
                     className="w-full bg-white/8 border border-white/30 rounded-xl px-6 py-3.5 text-white placeholder-white/50 text-center text-sm focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-xl shadow-lg group-hover:border-white/40 group-hover:bg-white/10"
                     required
@@ -338,7 +444,6 @@ export default function HochzeitsApp() {
         style={{ backgroundImage: siteContent.heroImage ? `url(${siteContent.heroImage})` : 'none' }}
       />
       
-      {/* Dark Overlay für andere Seiten */}
       {currentPage !== 'home' && (
         <div className="fixed inset-0 bg-gradient-to-b from-slate-950/40 via-slate-950/50 to-slate-950/60 z-0 pointer-events-none" />
       )}
@@ -446,12 +551,12 @@ export default function HochzeitsApp() {
 
                   {editingSection === 'card' ? (
                     <div className="space-y-6">
-                      <input type="text" value={siteContent.coupleNames} onChange={(e) => updateContent('coupleNames', e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white text-center backdrop-blur-sm" placeholder="Namen" />
-                      <input type="text" value={siteContent.weddingDate} onChange={(e) => updateContent('weddingDate', e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white text-center backdrop-blur-sm" placeholder="Datum" />
-                      <input type="text" value={siteContent.weddingTime} onChange={(e) => updateContent('weddingTime', e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white text-center backdrop-blur-sm" placeholder="Zeit" />
-                      <input type="text" value={siteContent.venue} onChange={(e) => updateContent('venue', e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white text-center backdrop-blur-sm" placeholder="Ort" />
-                      <input type="text" value={siteContent.address} onChange={(e) => updateContent('address', e.target.value)} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white text-center backdrop-blur-sm" placeholder="Adresse" />
-                      <textarea value={siteContent.description} onChange={(e) => updateContent('description', e.target.value)} rows="3" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white text-sm backdrop-blur-sm" placeholder="Beschreibung" />
+                      <input type="text" value={siteContent.coupleNames} onChange={(e) => updateSiteContent({ coupleNames: e.target.value })} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white text-center backdrop-blur-sm" placeholder="Namen" />
+                      <input type="text" value={siteContent.weddingDate} onChange={(e) => updateSiteContent({ weddingDate: e.target.value })} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white text-center backdrop-blur-sm" placeholder="Datum" />
+                      <input type="text" value={siteContent.weddingTime} onChange={(e) => updateSiteContent({ weddingTime: e.target.value })} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white text-center backdrop-blur-sm" placeholder="Zeit" />
+                      <input type="text" value={siteContent.venue} onChange={(e) => updateSiteContent({ venue: e.target.value })} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white text-center backdrop-blur-sm" placeholder="Ort" />
+                      <input type="text" value={siteContent.address} onChange={(e) => updateSiteContent({ address: e.target.value })} className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white text-center backdrop-blur-sm" placeholder="Adresse" />
+                      <textarea value={siteContent.description} onChange={(e) => updateSiteContent({ description: e.target.value })} rows="3" className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-2 text-white text-sm backdrop-blur-sm" placeholder="Beschreibung" />
                     </div>
                   ) : (
                     <>
@@ -545,7 +650,7 @@ export default function HochzeitsApp() {
               <h2 className="text-3xl font-light text-white/95 script-font" style={{ fontWeight: 400 }}>Ablauf</h2>
               {userRole === 'admin' && (
                 <div className="flex gap-2">
-                  <button onClick={() => { const newItem = { time: '', event: '', subItems: [] }; const updated = [...siteContent.timeline, newItem]; updateContent('timeline', updated); }} className="text-emerald-300/70 hover:text-emerald-200"><Plus size={20} /></button>
+                  <button onClick={() => { const newItem = { time: '', event: '', subItems: [] }; updateSiteContent({ timeline: [...siteContent.timeline, newItem] }); }} className="text-emerald-300/70 hover:text-emerald-200"><Plus size={20} /></button>
                   <button onClick={() => setEditingSection(editingSection === 'timeline' ? null : 'timeline')} className="text-emerald-300/70 hover:text-emerald-200">{editingSection === 'timeline' ? <Save size={20} /> : <Edit2 size={20} />}</button>
                 </div>
               )}
@@ -557,20 +662,20 @@ export default function HochzeitsApp() {
                   {editingSection === 'timeline' ? (
                     <div className="p-6 space-y-4">
                       <div className="flex gap-4">
-                        <input type="text" value={item.time} onChange={(e) => { const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, time: e.target.value} : i); updateContent('timeline', updated); }} className="w-24 bg-white/10 border border-white/20 rounded-lg px-2 py-1 font-mono text-sm text-white backdrop-blur-sm" placeholder="Zeit" />
-                        <input type="text" value={item.event} onChange={(e) => { const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, event: e.target.value} : i); updateContent('timeline', updated); }} className="flex-1 bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm text-white backdrop-blur-sm" placeholder="Event" />
-                        <button onClick={() => { const updated = siteContent.timeline.filter((_, i2) => i2 !== idx); updateContent('timeline', updated); }} className="text-red-400/70 hover:text-red-300"><Trash2 size={18} /></button>
+                        <input type="text" value={item.time} onChange={(e) => { const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, time: e.target.value} : i); updateSiteContent({ timeline: updated }); }} className="w-24 bg-white/10 border border-white/20 rounded-lg px-2 py-1 font-mono text-sm text-white backdrop-blur-sm" placeholder="Zeit" />
+                        <input type="text" value={item.event} onChange={(e) => { const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, event: e.target.value} : i); updateSiteContent({ timeline: updated }); }} className="flex-1 bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm text-white backdrop-blur-sm" placeholder="Event" />
+                        <button onClick={() => { const updated = siteContent.timeline.filter((_, i2) => i2 !== idx); updateSiteContent({ timeline: updated }); }} className="text-red-400/70 hover:text-red-300"><Trash2 size={18} /></button>
                       </div>
 
                       <div className="ml-4 space-y-2 border-t border-white/15 pt-4">
                         <p className="text-xs text-emerald-300/70 uppercase font-light">Unterpunkte</p>
                         {item.subItems && item.subItems.map((sub, subIdx) => (
                           <div key={subIdx} className="flex gap-2">
-                            <input type="text" value={sub} onChange={(e) => { const newSubs = item.subItems.map((s, si) => si === subIdx ? e.target.value : s); const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, subItems: newSubs} : i); updateContent('timeline', updated); }} className="flex-1 bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm text-white backdrop-blur-sm" placeholder="Unterpunkt" />
-                            <button onClick={() => { const newSubs = item.subItems.filter((_, si) => si !== subIdx); const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, subItems: newSubs} : i); updateContent('timeline', updated); }} className="text-red-400/70 hover:text-red-300"><Trash2 size={16} /></button>
+                            <input type="text" value={sub} onChange={(e) => { const newSubs = item.subItems.map((s, si) => si === subIdx ? e.target.value : s); const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, subItems: newSubs} : i); updateSiteContent({ timeline: updated }); }} className="flex-1 bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-sm text-white backdrop-blur-sm" placeholder="Unterpunkt" />
+                            <button onClick={() => { const newSubs = item.subItems.filter((_, si) => si !== subIdx); const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, subItems: newSubs} : i); updateSiteContent({ timeline: updated }); }} className="text-red-400/70 hover:text-red-300"><Trash2 size={16} /></button>
                           </div>
                         ))}
-                        <button onClick={() => { const newSubs = [...(item.subItems || []), '']; const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, subItems: newSubs} : i); updateContent('timeline', updated); }} className="text-emerald-300/60 hover:text-emerald-200 text-sm flex items-center gap-1"><Plus size={14} /> Unterpunkt</button>
+                        <button onClick={() => { const newSubs = [...(item.subItems || []), '']; const updated = siteContent.timeline.map((i, i2) => i2 === idx ? {...i, subItems: newSubs} : i); updateSiteContent({ timeline: updated }); }} className="text-emerald-300/60 hover:text-emerald-200 text-sm flex items-center gap-1"><Plus size={14} /> Unterpunkt</button>
                       </div>
                     </div>
                   ) : (
@@ -615,7 +720,7 @@ export default function HochzeitsApp() {
                 <h3 className="text-xl font-light text-white/90">Gäste Details</h3>
                 <div className="space-y-3">
                   {guestList.map(guest => {
-                    const rsvp = rsvpData.find(r => r.guestCode === guest.password);
+                    const rsvp = rsvpData.find(r => r.guest_name === guest.name);
                     return (
                       <div key={guest.id} className="bg-white/5 rounded-xl p-4 border border-white/10 hover:border-emerald-400/30 hover:bg-white/8 transition">
                         <div className="flex justify-between items-start">
@@ -629,7 +734,7 @@ export default function HochzeitsApp() {
               </div>
             )}
 
-            {!rsvpData.find(r => r.guestCode === userCode) && userRole === 'guest' && (
+            {!rsvpData.find(r => r.guest_name === userName) && userRole === 'guest' && (
               <form onSubmit={handleRsvp} className="space-y-8">
                 <div><p className="font-light text-white/80 mb-4">Kommst du?</p><div className="space-y-2">{[true, false].map(val => (<label key={val} className="flex items-center p-4 bg-white/5 rounded-xl cursor-pointer hover:bg-white/10 transition border border-white/15 hover:border-emerald-400/30"><input type="radio" checked={rsvpForm.attending === val} onChange={() => setRsvpForm({...rsvpForm, attending: val})} className="mr-3" /><span className="text-white/80 font-light">{val ? 'Ja, gerne' : 'Leider nein'}</span></label>))}</div></div>
                 {rsvpForm.attending && (<div className="grid grid-cols-2 gap-4">{[{label: 'Erwachsene', key: 'adults'}, {label: 'Kinder (0-14)', key: 'children'}].map(field => (<div key={field.key}><label className="block text-xs text-emerald-300/80 uppercase mb-2 font-light">{field.label}</label><input type="number" min={field.key === 'children' ? 0 : 1} value={rsvpForm[field.key]} onChange={(e) => setRsvpForm({...rsvpForm, [field.key]: parseInt(e.target.value)})} className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-white backdrop-blur-sm focus:outline-none focus:ring-1 focus:ring-emerald-400/50" /></div>))}</div>)}
@@ -637,7 +742,7 @@ export default function HochzeitsApp() {
               </form>
             )}
 
-            {rsvpData.find(r => r.guestCode === userCode) && userRole === 'guest' && (<div className="bg-green-900/30 border border-green-500/40 rounded-xl p-6 text-center backdrop-blur-sm"><p className="text-green-300/90 font-light">✓ Danke für deine Zusage!</p></div>)}
+            {rsvpData.find(r => r.guest_name === userName) && userRole === 'guest' && (<div className="bg-green-900/30 border border-green-500/40 rounded-xl p-6 text-center backdrop-blur-sm"><p className="text-green-300/90 font-light">✓ Danke für deine Zusage!</p></div>)}
           </div>
         )}
 
@@ -656,10 +761,10 @@ export default function HochzeitsApp() {
 
             <div className="space-y-3">
               {faqList.map(faq => {
-                const canDelete = userRole === 'admin' || (userRole === 'guest' && faq.author === userName && faq.isFromGuest);
+                const canDelete = userRole === 'admin' || (userRole === 'guest' && faq.author === userName && faq.is_from_guest);
                 return (
                   <div key={faq.id} className="bg-white/5 border border-white/15 rounded-2xl overflow-hidden backdrop-blur-sm hover:border-emerald-400/30 hover:bg-white/8 transition">
-                    <button onClick={() => setExpandedTimeline(expandedTimeline === faq.id ? null : faq.id)} className="w-full p-6 flex justify-between items-start cursor-pointer"><div className="text-left flex-1"><p className="font-light text-white/90">{faq.question}</p><p className="text-xs text-emerald-300/70 mt-2 font-light">{faq.isFromGuest ? 'Gast Frage' : 'Admin'}</p></div><div className="flex items-center gap-2">{canDelete && <button onClick={(e) => { e.stopPropagation(); handleDeleteFaq(faq.id); }} className="text-red-400/70 hover:text-red-300"><Trash2 size={18} /></button>}<ChevronDown size={20} className={`text-emerald-300/40 transition ${expandedTimeline === faq.id ? 'rotate-180' : ''}`} /></div></button>
+                    <button onClick={() => setExpandedTimeline(expandedTimeline === faq.id ? null : faq.id)} className="w-full p-6 flex justify-between items-start cursor-pointer"><div className="text-left flex-1"><p className="font-light text-white/90">{faq.question}</p><p className="text-xs text-emerald-300/70 mt-2 font-light">{faq.is_from_guest ? 'Gast Frage' : 'Admin'}</p></div><div className="flex items-center gap-2">{canDelete && <button onClick={(e) => { e.stopPropagation(); handleDeleteFaq(faq.id); }} className="text-red-400/70 hover:text-red-300"><Trash2 size={18} /></button>}<ChevronDown size={20} className={`text-emerald-300/40 transition ${expandedTimeline === faq.id ? 'rotate-180' : ''}`} /></div></button>
                     {expandedTimeline === faq.id && (<div className="border-t border-white/15 p-6 space-y-4 bg-white/5">{userRole === 'admin' && !faq.answer ? (<textarea defaultValue={faq.answer} onBlur={(e) => updateFaqAnswer(faq.id, e.target.value)} placeholder="Antwort..." rows="3" className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white placeholder-white/40 backdrop-blur-sm" />) : (<div><p className="text-white/80 text-sm font-light mb-3">{faq.answer || 'Noch keine Antwort'}</p>{userRole === 'admin' && faq.answer && <button onClick={() => { const newAnswer = prompt('Bearbeiten:', faq.answer); if (newAnswer !== null) updateFaqAnswer(faq.id, newAnswer); }} className="text-emerald-300/70 hover:text-emerald-200 text-sm font-light">✏️ Bearbeiten</button>}</div>)}</div>)}
                   </div>
                 );
@@ -676,10 +781,10 @@ export default function HochzeitsApp() {
             {userRole === 'admin' && (
               <div className="bg-white/5 border border-white/15 rounded-2xl p-8 space-y-6 backdrop-blur-sm">
                 <h3 className="text-xl font-light text-white/90">Google Drive Link</h3>
-                <input type="text" value={siteContent.googleDriveLink} onChange={(e) => updateContent('googleDriveLink', e.target.value)} placeholder="https://drive.google.com/..." className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-sm font-mono text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-sm" />
+                <input type="text" value={siteContent.googleDriveLink} onChange={(e) => updateSiteContent({ googleDriveLink: e.target.value })} placeholder="https://drive.google.com/..." className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-sm font-mono text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-sm" />
                 
                 <h3 className="text-xl font-light text-white/90 pt-4 border-t border-white/15">Anleitung für Gäste</h3>
-                <textarea value={siteContent.googleDriveUploadLink} onChange={(e) => updateContent('googleDriveUploadLink', e.target.value)} rows="4" placeholder="Wie laden Gäste Fotos hoch?" className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-sm" />
+                <textarea value={siteContent.googleDriveUploadLink} onChange={(e) => updateSiteContent({ googleDriveUploadLink: e.target.value })} rows="4" placeholder="Wie laden Gäste Fotos hoch?" className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-sm" />
               </div>
             )}
 
@@ -739,12 +844,13 @@ export default function HochzeitsApp() {
             {adminTab === 'einstellungen' && (
               <div className="space-y-8">
                 <div className="space-y-4">
-                  <h3 className="text-lg font-light text-white/90">Admin Passwort</h3>
+                  <h3 className="text-lg font-light text-white/90">Admin Passwort (lokal)</h3>
                   <div className="space-y-3">
                     <input type="password" placeholder="Aktuell" id="currentPw" className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-sm" />
                     <input type="password" placeholder="Neu" id="newPw" className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-sm" />
-                    <button onClick={() => { const currentPw = document.getElementById('currentPw').value; const newPw = document.getElementById('newPw').value; if (!currentPw || !newPw) { alert('Bitte ausfüllen'); return; } if (currentPw !== siteContent.adminPassword && currentPw !== BACKUP_ADMIN_PASSWORD) { alert('Falsch'); return; } updateContent('adminPassword', newPw); document.getElementById('currentPw').value = ''; document.getElementById('newPw').value = ''; alert('✓'); }} className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white py-3 rounded-lg transition font-light shadow-lg">Ändern</button>
+                    <button onClick={() => { const currentPw = document.getElementById('currentPw').value; const newPw = document.getElementById('newPw').value; if (!currentPw || !newPw) { alert('Bitte ausfüllen'); return; } if (currentPw !== adminPassword) { alert('Falsch'); return; } setAdminPassword(newPw); document.getElementById('currentPw').value = ''; document.getElementById('newPw').value = ''; alert('✓ Passwort geändert'); }} className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white py-3 rounded-lg transition font-light shadow-lg">Ändern</button>
                   </div>
+                  <p className="text-xs text-white/50 italic">Dieses Passwort ist nur auf diesem Gerät gespeichert (localStorage)</p>
                 </div>
               </div>
             )}
@@ -753,7 +859,7 @@ export default function HochzeitsApp() {
       </div>
 
       <footer className="relative z-10 bg-slate-900/30 border-t border-white/10 py-8 text-center text-white/40 text-xs font-light mt-20 backdrop-blur">
-        <p>Hochzeitswebseite • Alle Daten lokal sicher</p>
+        <p>Hochzeitswebseite • Alle Daten sicher</p>
       </footer>
     </div>
   );
