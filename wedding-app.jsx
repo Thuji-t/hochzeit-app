@@ -335,10 +335,15 @@ export default function HochzeitsApp() {
       <style>{styles}</style>
 
       <div className={`fixed inset-0 bg-cover bg-center z-0 pointer-events-none transition-all duration-500 ${
-        currentPage === 'home' ? 'opacity-30 blur-0' : 'opacity-12 blur-md'
+        currentPage === 'home' ? 'opacity-30 blur-0' : 'opacity-25 blur-md'
       }`}
         style={{ backgroundImage: siteContent.heroImage ? `url(${siteContent.heroImage})` : 'none' }}
       />
+      
+      {/* Dark Overlay für andere Seiten */}
+      {currentPage !== 'home' && (
+        <div className="fixed inset-0 bg-gradient-to-b from-slate-950/40 via-slate-950/50 to-slate-950/60 z-0 pointer-events-none" />
+      )}
 
       {/* NAV */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-slate-900/50 backdrop-blur-2xl border-b border-white/10 shadow-2xl">
