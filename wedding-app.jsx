@@ -13,11 +13,7 @@ export default function HochzeitsApp() {
   const [expandedTimeline, setExpandedTimeline] = useState(null);
   const [adminTab, setAdminTab] = useState('guests');
 
-  const [guestList, setGuestList] = useState([]);
-  const [rsvpData, setRsvpData] = useState([]);
-  const [faqList, setFaqList] = useState([]);
-
-  const [siteContent, setSiteContent] = useState({
+  const defaultContent = {
     coupleNames: 'Bira & Partner',
     weddingDate: '14. Juni 2025',
     weddingTime: '16:00 - 23:00 Uhr',
@@ -42,7 +38,25 @@ export default function HochzeitsApp() {
       faq: true,
       fotos: true
     }
+  };
+
+  // Lade gespeicherte Content oder nutze defaults
+  const savedContent = localStorage.getItem('hochzeitsContent');
+  const initialContent = savedContent ? JSON.parse(savedContent) : defaultContent;
+
+  const [guestList, setGuestList] = useState(() => {
+    const saved = localStorage.getItem('hochzeitsGaesteListe');
+    return saved ? JSON.parse(saved) : [];
   });
+  const [rsvpData, setRsvpData] = useState(() => {
+    const saved = localStorage.getItem('hochzeitsRSVP');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [faqList, setFaqList] = useState(() => {
+    const saved = localStorage.getItem('hochzeitsFAQ');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [siteContent, setSiteContent] = useState(initialContent);
 
   const [loginData, setLoginData] = useState({ name: '', code: '' });
   const [adminPassword, setAdminPassword] = useState('');
@@ -51,22 +65,6 @@ export default function HochzeitsApp() {
   const [newFaqQuestion, setNewFaqQuestion] = useState('');
   const [editingGuestId, setEditingGuestId] = useState(null);
   const [editingGuestData, setEditingGuestData] = useState({ name: '', password: '' });
-
-  useEffect(() => {
-    const saved = {
-      guests: localStorage.getItem('hochzeitsGaesteListe'),
-      rsvp: localStorage.getItem('hochzeitsRSVP'),
-      content: localStorage.getItem('hochzeitsContent'),
-      faq: localStorage.getItem('hochzeitsFAQ')
-    };
-    if (saved.guests) setGuestList(JSON.parse(saved.guests));
-    if (saved.rsvp) setRsvpData(JSON.parse(saved.rsvp));
-    if (saved.content) {
-      const content = JSON.parse(saved.content);
-      setSiteContent({...siteContent, ...content});
-    }
-    if (saved.faq) setFaqList(JSON.parse(saved.faq));
-  }, []);
 
   const save = (key, data) => localStorage.setItem(key, JSON.stringify(data));
   const updateContent = (key, value) => {
