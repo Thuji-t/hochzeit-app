@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, LogOut, Edit2, Save, Plus, Trash2, Copy, ChevronDown } from 'lucide-react';
+import { Menu, X, LogOut, Edit2, Save, Plus, Trash2, Copy, ChevronDown, Lock } from 'lucide-react';
 
 export default function HochzeitsApp() {
   const [currentPage, setCurrentPage] = useState('login');
@@ -33,7 +33,13 @@ export default function HochzeitsApp() {
       { time: '21:00', event: 'Tanz & Feier', subItems: [] }
     ],
     googleDriveLink: '',
-    googleDriveUploadLink: ''
+    googleDriveUploadLink: '',
+    tabAvailability: {
+      timeline: true,
+      rsvp: true,
+      faq: true,
+      fotos: true
+    }
   });
 
   const [loginData, setLoginData] = useState({ name: '', code: '' });
@@ -51,7 +57,10 @@ export default function HochzeitsApp() {
     };
     if (saved.guests) setGuestList(JSON.parse(saved.guests));
     if (saved.rsvp) setRsvpData(JSON.parse(saved.rsvp));
-    if (saved.content) setSiteContent(JSON.parse(saved.content));
+    if (saved.content) {
+      const content = JSON.parse(saved.content);
+      setSiteContent({...siteContent, ...content});
+    }
     if (saved.faq) setFaqList(JSON.parse(saved.faq));
     
     setTimeout(() => setHeroImageLoaded(true), 100);
@@ -62,6 +71,14 @@ export default function HochzeitsApp() {
     const updated = { ...siteContent, [key]: value };
     setSiteContent(updated);
     save('hochzeitsContent', updated);
+  };
+
+  const toggleTabAvailability = (tab) => {
+    const updated = {
+      ...siteContent.tabAvailability,
+      [tab]: !siteContent.tabAvailability[tab]
+    };
+    updateContent('tabAvailability', updated);
   };
 
   const handleLogin = (e) => {
@@ -80,7 +97,7 @@ export default function HochzeitsApp() {
 
   const handleAdminLogin = (e) => {
     e.preventDefault();
-    if (adminPassword === 'Hochzeit2024') {
+    if (adminPassword === 'Hochzeit2027') {
       setUserRole('admin');
       setUserName('Admin');
       setCurrentPage('home');
@@ -175,6 +192,18 @@ export default function HochzeitsApp() {
   const totalAdults = rsvpData.filter(r => r.attending).reduce((sum, r) => sum + (r.adults || 0), 0);
   const totalChildren = rsvpData.filter(r => r.attending).reduce((sum, r) => sum + (r.children || 0), 0);
 
+  const canAccessTab = (tab) => userRole === 'admin' || siteContent.tabAvailability[tab];
+
+  const getPageTitle = () => {
+    switch(currentPage) {
+      case 'timeline': return 'Ablauf';
+      case 'rsvp': return 'Zusage';
+      case 'faq': return 'FAQ';
+      case 'fotos': return 'Fotogalerie';
+      default: return 'Home';
+    }
+  };
+
   const styles = `
     @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap');
     @keyframes fadeIn {
@@ -212,7 +241,7 @@ export default function HochzeitsApp() {
                 <h1 className="text-7xl text-teal-900 font-light leading-tight script-font" style={{ fontWeight: 400 }}>
                   {siteContent.coupleNames.split(' & ')[0]}
                 </h1>
-                <p className="text-amber-700/70 text-sm font-light">and</p>
+                <p className="text-teal-700/50 text-sm font-light">and</p>
                 <h1 className="text-7xl text-teal-900 font-light leading-tight script-font" style={{ fontWeight: 400 }}>
                   {siteContent.coupleNames.split(' & ')[1]}
                 </h1>
@@ -288,9 +317,12 @@ export default function HochzeitsApp() {
       {/* NAV */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b-2 border-teal-200">
         <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
-          <button 
-            onClick={() => setCurrentPage('home')}
-            className="text-2xl text-teal-600 hover:text-teal-700 transition">✨</button>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setCurrentPage('home')}
+              className="text-2xl text-teal-600 hover:text-teal-700 transition">✨</button>
+            <span className="hidden sm:block text-teal-700 font-light text-sm">{getPageTitle()}</span>
+          </div>
           
           <button 
             className="text-teal-600 hover:text-teal-700"
@@ -301,14 +333,29 @@ export default function HochzeitsApp() {
 
         {mobileMenuOpen && (
           <div className="bg-white/95 backdrop-blur-md border-t-2 border-teal-200 p-4 space-y-3">
-            {['home', 'timeline', 'rsvp', 'faq', 'fotos'].map(page => (
-              <button 
-                key={page}
-                onClick={() => { setCurrentPage(page); setMobileMenuOpen(false); }}
-                className="block w-full text-left py-2 text-gray-700 hover:text-teal-600 text-sm font-light">
-                {page === 'home' ? '🏠 Home' : page === 'timeline' ? '⏰ Ablauf' : page === 'rsvp' ? '💌 RSVP' : page === 'faq' ? '❓ FAQ' : '📸 Fotos'}
-              </button>
-            ))}
+            {['home', 'timeline', 'rsvp', 'faq', 'fotos'].map(page => {
+              const isAvailable = page === 'home' || canAccessTab(page);
+              const showLocked = !isAvailable;
+              
+              return (
+                <button 
+                  key={page}
+                  onClick={() => { 
+                    if (isAvailable) {
+                      setCurrentPage(page); 
+                      setMobileMenuOpen(false);
+                    }
+                  }}
+                  className={`block w-full text-left py-2 text-sm font-light ${
+                    isAvailable 
+                      ? 'text-gray-700 hover:text-teal-600' 
+                      : 'text-gray-400'
+                  }`}>
+                  {page === 'home' ? '🏠 Home' : page === 'timeline' ? '⏰ Ablauf' : page === 'rsvp' ? '💌 RSVP' : page === 'faq' ? '❓ FAQ' : '📸 Fotos'}
+                  {showLocked && <span className="text-xs text-gray-400 ml-2">(bald sichtbar)</span>}
+                </button>
+              );
+            })}
             {userRole === 'admin' && (
               <button 
                 onClick={() => { setCurrentPage('admin'); setMobileMenuOpen(false); }}
@@ -432,7 +479,7 @@ export default function HochzeitsApp() {
                         <h1 className="text-6xl text-teal-900 font-light leading-tight script-font" style={{ fontWeight: 400 }}>
                           {siteContent.coupleNames.split(' & ')[0]}
                         </h1>
-                        <p className="text-amber-700 text-sm">and</p>
+                        <p className="text-teal-700/60 text-sm font-light">and</p>
                         <h1 className="text-6xl text-teal-900 font-light leading-tight script-font" style={{ fontWeight: 400 }}>
                           {siteContent.coupleNames.split(' & ')[1]}
                         </h1>
@@ -468,14 +515,22 @@ export default function HochzeitsApp() {
               <div className="bg-white px-4 py-12">
                 <div className="max-w-2xl mx-auto flex flex-col gap-4">
                   <button 
-                    onClick={() => setCurrentPage('rsvp')}
-                    className="w-full bg-teal-500 hover:bg-teal-600 text-white border-2 border-teal-600 py-4 rounded-lg transition font-light">
-                    Zur Zusage
+                    onClick={() => canAccessTab('rsvp') ? setCurrentPage('rsvp') : null}
+                    className={`w-full border-2 py-4 rounded-lg transition font-light ${
+                      canAccessTab('rsvp')
+                        ? 'bg-teal-500 hover:bg-teal-600 border-teal-600 text-white'
+                        : 'bg-gray-200 border-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}>
+                    Zur Zusage {!canAccessTab('rsvp') && '(bald sichtbar)'}
                   </button>
                   <button 
-                    onClick={() => setCurrentPage('fotos')}
-                    className="w-full bg-amber-400/60 hover:bg-amber-400/80 text-teal-900 border-2 border-amber-400 py-4 rounded-lg transition font-light">
-                    Zur Fotogalerie
+                    onClick={() => canAccessTab('fotos') ? setCurrentPage('fotos') : null}
+                    className={`w-full border-2 py-4 rounded-lg transition font-light ${
+                      canAccessTab('fotos')
+                        ? 'bg-rose-200 hover:bg-rose-300 border-rose-400 text-teal-900'
+                        : 'bg-gray-200 border-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}>
+                    Zur Fotogalerie {!canAccessTab('fotos') && '(bald sichtbar)'}
                   </button>
                 </div>
               </div>
@@ -502,7 +557,7 @@ export default function HochzeitsApp() {
         )}
 
         {/* TIMELINE */}
-        {currentPage === 'timeline' && (
+        {currentPage === 'timeline' && canAccessTab('timeline') && (
           <div className="max-w-2xl mx-auto px-4 py-16 space-y-8">
             <div className="flex justify-between items-center">
               <h2 className="text-3xl font-light text-teal-900 script-font" style={{ fontWeight: 400 }}>Ablauf</h2>
@@ -627,7 +682,7 @@ export default function HochzeitsApp() {
         )}
 
         {/* RSVP */}
-        {currentPage === 'rsvp' && (
+        {currentPage === 'rsvp' && canAccessTab('rsvp') && (
           <div className="max-w-2xl mx-auto px-4 py-16 space-y-12">
             <h2 className="text-3xl font-light text-teal-900 script-font" style={{ fontWeight: 400 }}>Zusage</h2>
 
@@ -683,7 +738,7 @@ export default function HochzeitsApp() {
                               )}
                             </div>
                           ) : (
-                            <span className="text-sm text-amber-600 font-semibold">⏳ Ausstehend</span>
+                            <span className="text-sm text-rose-600 font-semibold">⏳ Ausstehend</span>
                           )}
                         </div>
                       </div>
@@ -750,7 +805,7 @@ export default function HochzeitsApp() {
         )}
 
         {/* FAQ */}
-        {currentPage === 'faq' && (
+        {currentPage === 'faq' && canAccessTab('faq') && (
           <div className="max-w-2xl mx-auto px-4 py-16 space-y-8">
             <h2 className="text-3xl font-light text-teal-900 script-font" style={{ fontWeight: 400 }}>FAQ</h2>
 
@@ -834,7 +889,7 @@ export default function HochzeitsApp() {
         )}
 
         {/* FOTOS */}
-        {currentPage === 'fotos' && (
+        {currentPage === 'fotos' && canAccessTab('fotos') && (
           <div className="max-w-2xl mx-auto px-4 py-16 space-y-12">
             <h2 className="text-3xl font-light text-teal-900 script-font" style={{ fontWeight: 400 }}>Fotogalerie</h2>
 
@@ -860,26 +915,28 @@ export default function HochzeitsApp() {
               </div>
             )}
 
-            {siteContent.googleDriveLink ? (
-              <div className="bg-teal-50 border-2 border-teal-300 rounded-lg p-8 space-y-6 text-center">
-                {siteContent.googleDriveUploadLink && (
-                  <div className="bg-white rounded-lg p-6 border-2 border-teal-200">
-                    <h3 className="text-lg font-light text-teal-900 mb-4">Fotos hochladen</h3>
-                    <p className="text-gray-700 text-sm font-light whitespace-pre-line">{siteContent.googleDriveUploadLink}</p>
-                  </div>
-                )}
-                <a 
-                  href={siteContent.googleDriveLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-block bg-amber-400/70 hover:bg-amber-400/90 text-teal-900 border-2 border-amber-500 px-12 py-4 rounded-lg transition font-light">
-                  Zur Google Drive Galerie →
-                </a>
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <p className="text-gray-600 font-light">Admin: Bitte Google Drive Link hinzufügen</p>
-              </div>
+            {userRole !== 'admin' && (
+              siteContent.googleDriveLink ? (
+                <div className="bg-rose-100 border-2 border-rose-300 rounded-lg p-8 space-y-6 text-center">
+                  {siteContent.googleDriveUploadLink && (
+                    <div className="bg-white rounded-lg p-6 border-2 border-rose-200">
+                      <h3 className="text-lg font-light text-teal-900 mb-4">Fotos hochladen</h3>
+                      <p className="text-gray-700 text-sm font-light whitespace-pre-line">{siteContent.googleDriveUploadLink}</p>
+                    </div>
+                  )}
+                  <a 
+                    href={siteContent.googleDriveLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block bg-rose-300 hover:bg-rose-400 text-teal-900 border-2 border-rose-500 px-12 py-4 rounded-lg transition font-light">
+                    Zur Google Drive Galerie →
+                  </a>
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-gray-600 font-light">Admin: Bitte Google Drive Link hinzufügen</p>
+                </div>
+              )
             )}
           </div>
         )}
@@ -891,12 +948,12 @@ export default function HochzeitsApp() {
 
             {/* Tabs */}
             <div className="flex gap-4 border-b-2 border-teal-300">
-              {['guests', 'overview'].map(tab => (
+              {['guests', 'overview', 'freigabe'].map(tab => (
                 <button 
                   key={tab}
                   onClick={() => setAdminTab(tab)}
                   className={`py-3 px-4 font-light text-sm transition ${adminTab === tab ? 'text-teal-600 border-b-2 border-teal-600' : 'text-gray-600 hover:text-teal-600'}`}>
-                  {tab === 'guests' ? 'Gäste' : 'Übersicht'}
+                  {tab === 'guests' ? 'Gäste' : tab === 'overview' ? 'Übersicht' : 'Reiter Freigabe'}
                 </button>
               ))}
             </div>
@@ -966,6 +1023,34 @@ export default function HochzeitsApp() {
                     <p className="text-sm text-teal-600 uppercase mb-2 font-semibold">Kinder</p>
                     <p className="text-4xl font-light text-teal-900">{totalChildren}</p>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Freigabe Tab */}
+            {adminTab === 'freigabe' && (
+              <div className="space-y-6">
+                <p className="text-sm text-gray-600 font-light">Aktiviere die Reiter, die Gäste sehen sollen:</p>
+                <div className="space-y-3">
+                  {['timeline', 'rsvp', 'faq', 'fotos'].map(tab => (
+                    <button 
+                      key={tab}
+                      onClick={() => toggleTabAvailability(tab)}
+                      className={`w-full p-4 rounded-lg border-2 font-light text-left transition ${
+                        siteContent.tabAvailability[tab]
+                          ? 'bg-white border-teal-300 text-teal-900'
+                          : 'bg-gray-100 border-gray-300 text-gray-600'
+                      }`}>
+                      <div className="flex items-center justify-between">
+                        <span className={siteContent.tabAvailability[tab] ? 'text-teal-600' : ''}>
+                          {tab === 'timeline' ? '⏰ Ablauf' : tab === 'rsvp' ? '💌 RSVP' : tab === 'faq' ? '❓ FAQ' : '📸 Fotos'}
+                        </span>
+                        <span className="text-sm">
+                          {siteContent.tabAvailability[tab] ? '✓ Freigegeben' : '🔒 Gesperrt'}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
