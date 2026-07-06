@@ -18,15 +18,9 @@ export default function HochzeitsApp() {
   const [adminTab, setAdminTab] = useState('guests');
   const [loading, setLoading] = useState(true);
 
-  // LOCAL: Nur Admin hat Zugriff - Passwörter bleiben lokal!
-  const [guestList, setGuestList] = useState(() => {
-    const saved = localStorage.getItem('hochzeitsGaesteListe');
-    return saved ? JSON.parse(saved) : [];
-  });
-  const [adminPassword, setAdminPassword] = useState('Hochzeit2024');
-
   // CLOUD: Aus Supabase laden
   const [siteContent, setSiteContent] = useState(null);
+  const [adminPasswordDisplay, setAdminPasswordDisplay] = useState(''); // nur für UI
   const [rsvpData, setRsvpData] = useState([]);
   const [faqList, setFaqList] = useState([]);
   const [cloudGuests, setCloudGuests] = useState([]);
@@ -69,8 +63,10 @@ export default function HochzeitsApp() {
           timeline: contentData.timeline || [],
           googleDriveLink: contentData.google_drive_link,
           googleDriveUploadLink: contentData.google_drive_upload_link,
-          tabAvailability: contentData.tab_availability || { timeline: true, rsvp: true, faq: true, fotos: true }
+          tabAvailability: contentData.tab_availability || { timeline: true, rsvp: true, faq: true, fotos: true },
+          adminPassword: contentData.admin_password || 'Hochzeit2024'
         });
+        setAdminPasswordDisplay(contentData.admin_password || 'Hochzeit2024');
       }
 
       // Lade Gäste-Namen von Cloud
@@ -110,7 +106,8 @@ export default function HochzeitsApp() {
         timeline: newContent.timeline,
         google_drive_link: newContent.googleDriveLink,
         google_drive_upload_link: newContent.googleDriveUploadLink,
-        tab_availability: newContent.tabAvailability
+        tab_availability: newContent.tabAvailability,
+        admin_password: newContent.adminPassword
       }).eq('id', 1);
     } catch (error) {
       console.error('Update Error:', error);
@@ -128,13 +125,14 @@ export default function HochzeitsApp() {
   // ===== AUTH =====
   const handleLogin = (e) => {
     e.preventDefault();
-    const guest = guestList.find(
-      g => g.name.toLowerCase() === loginData.name.toLowerCase() && g.password === loginData.code
+    // Suche in Cloud-Gästen (von Supabase)
+    const guest = cloudGuests.find(
+      g => g.guest_name.toLowerCase() === loginData.name.toLowerCase() && g.password === loginData.code
     );
     if (guest) {
       setUserCode(guest.password);
       setUserRole('guest');
-      setUserName(guest.name);
+      setUserName(guest.guest_name);
       setCurrentPage('home');
       setLoginData({ name: '', code: '' });
       return;
@@ -144,7 +142,7 @@ export default function HochzeitsApp() {
 
   const handleAdminLogin = (e) => {
     e.preventDefault();
-    if (adminLoginPassword === adminPassword) {
+    if (adminLoginPassword === siteContent.adminPassword) {
       setUserRole('admin');
       setUserName('Admin');
       setCurrentPage('home');
@@ -162,45 +160,52 @@ export default function HochzeitsApp() {
     setEditingSection(null);
   };
 
-  // ===== GÄSTE (LOKAL) =====
-  const handleAddGuest = (e) => {
+  // ===== GÄSTE (SUPABASE CLOUD) =====
+  const handleAddGuest = async (e) => {
     e.preventDefault();
     if (!newGuestData.name || !newGuestData.password) return;
-    const newGuest = { id: Date.now(), name: newGuestData.name, password: newGuestData.password };
-    const updated = [...guestList, newGuest];
-    setGuestList(updated);
-    localStorage.setItem('hochzeitsGaesteListe', JSON.stringify(updated));
-    setNewGuestData({ name: '', password: '' });
-
-    // Auch zu Cloud hinzufügen (nur Name!)
-    addGuestToCloud(newGuestData.name);
-  };
-
-  const addGuestToCloud = async (name) => {
+    
     try {
-      await supabase.from('guests').insert({ guest_name: name });
-      loadAllFromSupabase();
+      // Zu Supabase hinzufügen
+      await supabase.from('guests').insert({ 
+        guest_name: newGuestData.name,
+        password: newGuestData.password
+      });
+      await loadAllFromSupabase();
+      setNewGuestData({ name: '', password: '' });
+      alert('✓ Gast hinzugefügt!');
     } catch (error) {
-      console.error('Cloud Error:', error);
+      console.error('Error:', error);
+      alert('Fehler beim Hinzufügen');
     }
   };
 
-  const handleUpdateGuest = (id) => {
+  const handleUpdateGuest = async (id) => {
     if (!editingGuestData.name || !editingGuestData.password) return;
-    const updated = guestList.map(g => 
-      g.id === id ? { ...g, name: editingGuestData.name, password: editingGuestData.password } : g
-    );
-    setGuestList(updated);
-    localStorage.setItem('hochzeitsGaesteListe', JSON.stringify(updated));
-    setEditingGuestId(null);
-    setEditingGuestData({ name: '', password: '' });
+    
+    try {
+      await supabase.from('guests').update({
+        guest_name: editingGuestData.name,
+        password: editingGuestData.password
+      }).eq('id', id);
+      await loadAllFromSupabase();
+      setEditingGuestId(null);
+      setEditingGuestData({ name: '', password: '' });
+      alert('✓ Gast aktualisiert!');
+    } catch (error) {
+      console.error('Error:', error);
+    }
   };
 
-  const handleDeleteGuest = (id) => {
-    if (confirm('Löschen?')) {
-      const updated = guestList.filter(g => g.id !== id);
-      setGuestList(updated);
-      localStorage.setItem('hochzeitsGaesteListe', JSON.stringify(updated));
+  const handleDeleteGuest = async (id) => {
+    if (confirm('Wirklich löschen?')) {
+      try {
+        await supabase.from('guests').delete().eq('id', id);
+        await loadAllFromSupabase();
+        alert('✓ Gast gelöscht!');
+      } catch (error) {
+        console.error('Error:', error);
+      }
     }
   };
 
@@ -634,7 +639,7 @@ export default function HochzeitsApp() {
                 <div className="max-w-2xl mx-auto grid grid-cols-3 gap-4">
                   {[
                     { label: 'Zusagen', value: attendingCount },
-                    { label: 'Gäste', value: guestList.length },
+                    { label: 'Gäste', value: cloudGuests.length },
                     { label: 'Fragen', value: faqList.length }
                   ].map((stat, idx) => (
                     <div key={idx} className="bg-white/5 border border-white/15 rounded-2xl p-6 text-center backdrop-blur-sm hover:bg-white/8 hover:border-emerald-400/30 transition shadow-lg">
@@ -724,12 +729,12 @@ export default function HochzeitsApp() {
               <div className="bg-white/5 border border-white/15 rounded-2xl p-8 space-y-6 backdrop-blur-sm">
                 <h3 className="text-xl font-light text-white/90">Gäste Details</h3>
                 <div className="space-y-3">
-                  {guestList.map(guest => {
-                    const rsvp = rsvpData.find(r => r.guest_name === guest.name);
+                  {cloudGuests.map(guest => {
+                    const rsvp = rsvpData.find(r => r.guest_name === guest.guest_name);
                     return (
                       <div key={guest.id} className="bg-white/5 rounded-xl p-4 border border-white/10 hover:border-emerald-400/30 hover:bg-white/8 transition">
                         <div className="flex justify-between items-start">
-                          <div><p className="font-light text-white/90">{guest.name}</p><p className="text-xs text-emerald-300/60 font-mono mt-1">{guest.password}</p></div>
+                          <div><p className="font-light text-white/90">{guest.guest_name}</p><p className="text-xs text-emerald-300/60 font-mono mt-1">{guest.password}</p></div>
                           {rsvp ? (<div className="text-right"><span className={`text-sm font-light ${rsvp.attending ? 'text-green-400' : 'text-red-400'}`}>{rsvp.attending ? '✓ Zusage' : '✗ Absage'}</span>{rsvp.attending && <div className="text-xs text-white/60 mt-2"><p>{rsvp.adults} Erw.</p><p>{rsvp.children} Ki.</p></div>}</div>) : (<span className="text-sm text-amber-300/60 font-light">⏳ Ausstehend</span>)}
                         </div>
                       </div>
@@ -819,13 +824,13 @@ export default function HochzeitsApp() {
               <div className="space-y-6">
                 <form onSubmit={handleAddGuest} className="flex gap-2 flex-wrap">
                   <input type="text" value={newGuestData.name} onChange={(e) => setNewGuestData({...newGuestData, name: e.target.value})} placeholder="Name" className="flex-1 min-w-32 bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-sm" required />
-                  <input type="text" value={newGuestData.password} onChange={(e) => setNewGuestData({...newGuestData, password: e.target.value})} placeholder="Pwd" className="flex-1 min-w-32 bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-sm" required />
-                  <button className="bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white px-4 py-2 rounded-lg transition"><Plus size={18} /></button>
+                  <input type="text" value={newGuestData.password} onChange={(e) => setNewGuestData({...newGuestData, password: e.target.value})} placeholder="Passwort" className="flex-1 min-w-32 bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-sm" required />
+                  <button type="submit" className="bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white px-4 py-2 rounded-lg transition"><Plus size={18} /></button>
                 </form>
 
                 <div className="space-y-2">
-                  {guestList.map(guest => (
-                    <div key={guest.id}>{editingGuestId === guest.id ? (<div className="flex gap-2 p-3 bg-white/5 border border-white/15 rounded-lg"><input type="text" value={editingGuestData.name} onChange={(e) => setEditingGuestData({...editingGuestData, name: e.target.value})} className="flex-1 bg-white/10 border border-white/20 rounded px-2 py-1 text-sm text-white backdrop-blur-sm" /><input type="text" value={editingGuestData.password} onChange={(e) => setEditingGuestData({...editingGuestData, password: e.target.value})} className="flex-1 bg-white/10 border border-white/20 rounded px-2 py-1 text-sm text-white backdrop-blur-sm" /><button onClick={() => handleUpdateGuest(guest.id)} className="text-emerald-300/70 hover:text-emerald-200"><Save size={16} /></button><button onClick={() => setEditingGuestId(null)} className="text-red-400/70 hover:text-red-300"><X size={16} /></button></div>) : (<div className="flex items-center justify-between p-3 bg-white/5 border border-white/15 rounded-lg text-sm hover:border-emerald-400/30 hover:bg-white/8 transition"><div><p className="text-white/90">{guest.name}</p><p className="text-emerald-300/60 font-mono text-xs">{guest.password}</p></div><div className="flex gap-2"><button onClick={() => { setEditingGuestId(guest.id); setEditingGuestData({name: guest.name, password: guest.password}); }} className="text-emerald-300/70 hover:text-emerald-200"><Edit2 size={16} /></button><button onClick={() => { navigator.clipboard.writeText(guest.password); alert('✓'); }} className="text-white/50 hover:text-white"><Copy size={16} /></button><button onClick={() => handleDeleteGuest(guest.id)} className="text-red-400/70 hover:text-red-300"><Trash2 size={16} /></button></div></div>)}</div>
+                  {cloudGuests.map(guest => (
+                    <div key={guest.id}>{editingGuestId === guest.id ? (<div className="flex gap-2 p-3 bg-white/5 border border-white/15 rounded-lg"><input type="text" value={editingGuestData.name} onChange={(e) => setEditingGuestData({...editingGuestData, name: e.target.value})} className="flex-1 bg-white/10 border border-white/20 rounded px-2 py-1 text-sm text-white backdrop-blur-sm" /><input type="text" value={editingGuestData.password} onChange={(e) => setEditingGuestData({...editingGuestData, password: e.target.value})} className="flex-1 bg-white/10 border border-white/20 rounded px-2 py-1 text-sm text-white backdrop-blur-sm" /><button onClick={() => handleUpdateGuest(guest.id)} className="text-emerald-300/70 hover:text-emerald-200"><Save size={16} /></button><button onClick={() => setEditingGuestId(null)} className="text-red-400/70 hover:text-red-300"><X size={16} /></button></div>) : (<div className="flex items-center justify-between p-3 bg-white/5 border border-white/15 rounded-lg text-sm hover:border-emerald-400/30 hover:bg-white/8 transition"><div><p className="text-white/90">{guest.guest_name}</p><p className="text-emerald-300/60 font-mono text-xs">{guest.password}</p></div><div className="flex gap-2"><button onClick={() => { setEditingGuestId(guest.id); setEditingGuestData({name: guest.guest_name, password: guest.password}); }} className="text-emerald-300/70 hover:text-emerald-200"><Edit2 size={16} /></button><button onClick={() => { navigator.clipboard.writeText(guest.password); alert('✓ Passwort kopiert!'); }} className="text-white/50 hover:text-white"><Copy size={16} /></button><button onClick={() => handleDeleteGuest(guest.id)} className="text-red-400/70 hover:text-red-300"><Trash2 size={16} /></button></div></div>)}</div>
                   ))}
                 </div>
               </div>
@@ -849,13 +854,25 @@ export default function HochzeitsApp() {
             {adminTab === 'einstellungen' && (
               <div className="space-y-8">
                 <div className="space-y-4">
-                  <h3 className="text-lg font-light text-white/90">Admin Passwort (lokal)</h3>
+                  <h3 className="text-lg font-light text-white/90">Admin Passwort ändern</h3>
                   <div className="space-y-3">
-                    <input type="password" placeholder="Aktuell" id="currentPw" className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-sm" />
-                    <input type="password" placeholder="Neu" id="newPw" className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-sm" />
-                    <button onClick={() => { const currentPw = document.getElementById('currentPw').value; const newPw = document.getElementById('newPw').value; if (!currentPw || !newPw) { alert('Bitte ausfüllen'); return; } if (currentPw !== adminPassword) { alert('Falsch'); return; } setAdminPassword(newPw); document.getElementById('currentPw').value = ''; document.getElementById('newPw').value = ''; alert('✓ Passwort geändert'); }} className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white py-3 rounded-lg transition font-light shadow-lg">Ändern</button>
+                    <input type="password" placeholder="Aktuelles Passwort" id="currentPw" className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-sm" />
+                    <input type="password" placeholder="Neues Passwort" id="newPw" className="w-full bg-white/10 border border-white/20 rounded-lg px-4 py-3 text-sm text-white placeholder-white/40 focus:outline-none focus:ring-1 focus:ring-emerald-400/50 backdrop-blur-sm" />
+                    <button onClick={() => { 
+                      const currentPw = document.getElementById('currentPw').value; 
+                      const newPw = document.getElementById('newPw').value; 
+                      if (!currentPw || !newPw) { alert('Bitte ausfüllen'); return; } 
+                      if (currentPw !== siteContent.adminPassword) { alert('Aktuelles Passwort falsch'); return; } 
+                      updateSiteContent({ adminPassword: newPw });
+                      setAdminPasswordDisplay(newPw);
+                      document.getElementById('currentPw').value = ''; 
+                      document.getElementById('newPw').value = ''; 
+                      alert('✓ Passwort geändert (überall sofort aktiv)'); 
+                    }} className="w-full bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white py-3 rounded-lg transition font-light shadow-lg">
+                      Speichern
+                    </button>
                   </div>
-                  <p className="text-xs text-white/50 italic">Dieses Passwort ist nur auf diesem Gerät gespeichert (localStorage)</p>
+                  <p className="text-xs text-white/50 italic">✓ Gespeichert in Cloud - gültig überall sofort</p>
                 </div>
               </div>
             )}
